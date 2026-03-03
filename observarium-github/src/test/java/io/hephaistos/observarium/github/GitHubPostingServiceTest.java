@@ -167,19 +167,16 @@ class GitHubPostingServiceTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void findDuplicate_returnFound_whenIssueExistsInSearchResults() throws Exception {
-        String searchResponse = """
-                {
-                  "total_count": 1,
-                  "items": [
-                    { "number": 42, "html_url": "https://github.com/owner/repo/issues/42" }
-                  ]
-                }
+    void findDuplicate_returnFound_whenIssueExistsWithLabel() throws Exception {
+        String listResponse = """
+                [
+                  { "number": 42, "html_url": "https://github.com/owner/repo/issues/42" }
+                ]
                 """;
 
         HttpResponse<String> httpResponse = mock(HttpResponse.class);
         when(httpResponse.statusCode()).thenReturn(200);
-        when(httpResponse.body()).thenReturn(searchResponse);
+        when(httpResponse.body()).thenReturn(listResponse);
         when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenReturn(httpResponse);
 
@@ -195,14 +192,12 @@ class GitHubPostingServiceTest {
 
     @Test
     @SuppressWarnings("unchecked")
-    void findDuplicate_returnsNotFound_whenSearchResultsEmpty() throws Exception {
-        String searchResponse = """
-                { "total_count": 0, "items": [] }
-                """;
+    void findDuplicate_returnsNotFound_whenNoIssuesWithLabel() throws Exception {
+        String listResponse = "[]";
 
         HttpResponse<String> httpResponse = mock(HttpResponse.class);
         when(httpResponse.statusCode()).thenReturn(200);
-        when(httpResponse.body()).thenReturn(searchResponse);
+        when(httpResponse.body()).thenReturn(listResponse);
         when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenReturn(httpResponse);
 

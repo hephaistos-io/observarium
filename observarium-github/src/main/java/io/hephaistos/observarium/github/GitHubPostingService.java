@@ -61,40 +61,36 @@ public class GitHubPostingService implements PostingService {
     }
 
     /**
-     * Searches GitHub issues for one that contains the fingerprint marker embedded by
-     * {@link IssueFormatter#markdownBody}.
+     * Searches for an open GitHub issue carrying the fingerprint label.
      *
-     * <p>The search query targets the exact HTML comment so that only Observarium-managed
-     * issues are matched, avoiding false positives from other issue text.
+     * <p>Uses a label of the form {@code observarium-{first12CharsOfFingerprint}} so that
+     * deduplication relies on the GitHub Issues API (label filtering) rather than the
+     * Search API (which does not index HTML comments).
      */
     @Override
     public DuplicateSearchResult findDuplicate(ExceptionEvent event) {
-        String marker = IssueFormatter.fingerprintMarker(event.fingerprint());
-        String query = "repo:" + config.owner() + "/" + config.repo()
-                + " \"" + marker + "\" is:issue";
-        String encodedQuery = URLEncoder.encode(query, StandardCharsets.UTF_8);
-        String url = API_BASE + "/search/issues?q=" + encodedQuery;
+        String label = fingerprintLabel(event.fingerprint());
+        String url = API_BASE + "/repos/" + config.owner() + "/" + config.repo()
+                + "/issues?labels=" + URLEncoder.encode(label, StandardCharsets.UTF_8)
+                + "&state=open";
 
-        log.debug("Searching for duplicate issue. fingerprint={}", event.fingerprint());
+        log.debug("Searching for duplicate issue. fingerprint={} label={}", event.fingerprint(), label);
 
         try {
             HttpRequest request = buildGetRequest(url);
             HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (!isSuccess(response.statusCode())) {
-                log.warn("GitHub search returned HTTP {}. body={}", response.statusCode(), response.body());
+                log.warn("GitHub duplicate search returned HTTP {}. body={}", response.statusCode(), response.body());
                 return DuplicateSearchResult.notFound();
             }
 
-            JsonObject body = gson.fromJson(response.body(), JsonObject.class);
-            JsonArray items = body.getAsJsonArray("items");
-
-            if (items == null || items.isEmpty()) {
+            JsonArray issues = gson.fromJson(response.body(), JsonArray.class);
+            if (issues == null || issues.isEmpty()) {
                 return DuplicateSearchResult.notFound();
             }
 
-            // Use the first match — fingerprints are deterministic so there should only be one.
-            JsonObject issue = items.get(0).getAsJsonObject();
+            JsonObject issue = issues.get(0).getAsJsonObject();
             String issueNumber = String.valueOf(issue.get("number").getAsInt());
             String htmlUrl = issue.get("html_url").getAsString();
 
@@ -127,6 +123,7 @@ public class GitHubPostingService implements PostingService {
 
         JsonArray labels = new JsonArray();
         labels.add(config.labelPrefix());
+        labels.add(fingerprintLabel(event.fingerprint()));
         requestBody.add("labels", labels);
 
         log.debug("Creating GitHub issue. fingerprint={}", event.fingerprint());
@@ -203,6 +200,11 @@ public class GitHubPostingService implements PostingService {
     // -------------------------------------------------------------------------
     // Private helpers
     // -------------------------------------------------------------------------
+
+    static String fingerprintLabel(String fingerprint) {
+        String hash12 = fingerprint.length() > 12 ? fingerprint.substring(0, 12) : fingerprint;
+        return "observarium-" + hash12;
+    }
 
     private HttpRequest buildGetRequest(String url) {
         return HttpRequest.newBuilder()
