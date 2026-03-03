@@ -5,6 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import io.hephaistos.observarium.event.ExceptionEvent;
+import io.hephaistos.observarium.posting.DefaultIssueFormatter;
 import io.hephaistos.observarium.posting.DuplicateSearchResult;
 import io.hephaistos.observarium.posting.IssueFormatter;
 import io.hephaistos.observarium.posting.PostingResult;
@@ -41,20 +42,26 @@ public class JiraPostingService implements PostingService {
     private final JiraConfig config;
     private final HttpClient httpClient;
     private final Gson gson;
+    private final IssueFormatter formatter;
 
     public JiraPostingService(JiraConfig config) {
         this(config, HttpClient.newBuilder()
                 .connectTimeout(REQUEST_TIMEOUT)
-                .build(), new Gson());
+                .build(), new Gson(), new DefaultIssueFormatter());
     }
 
-    /**
-     * Package-private constructor used in tests to inject a custom {@link HttpClient}.
-     */
-    JiraPostingService(JiraConfig config, HttpClient httpClient, Gson gson) {
-        this.config = config;
-        this.httpClient = httpClient;
-        this.gson = gson;
+    public JiraPostingService(JiraConfig config, IssueFormatter formatter) {
+        this(config, HttpClient.newBuilder()
+                .connectTimeout(REQUEST_TIMEOUT)
+                .build(), new Gson(), formatter);
+    }
+
+    /** Package-private constructor used in tests to inject a custom {@link HttpClient}. */
+    JiraPostingService(JiraConfig config, HttpClient httpClient, Gson gson, IssueFormatter formatter) {
+        this.config = java.util.Objects.requireNonNull(config, "config must not be null");
+        this.httpClient = java.util.Objects.requireNonNull(httpClient, "httpClient must not be null");
+        this.gson = java.util.Objects.requireNonNull(gson, "gson must not be null");
+        this.formatter = java.util.Objects.requireNonNull(formatter, "formatter must not be null");
     }
 
     @Override
@@ -127,8 +134,8 @@ public class JiraPostingService implements PostingService {
      */
     @Override
     public PostingResult createIssue(ExceptionEvent event) {
-        String title = IssueFormatter.title(event);
-        String markdownBody = IssueFormatter.markdownBody(event);
+        String title = formatter.title(event);
+        String markdownBody = formatter.markdownBody(event);
         String label = fingerprintLabel(event.fingerprint());
 
         JsonObject body = buildCreateIssueBody(title, markdownBody, label);
@@ -164,7 +171,7 @@ public class JiraPostingService implements PostingService {
      */
     @Override
     public PostingResult commentOnIssue(String externalIssueId, ExceptionEvent event) {
-        String commentText = IssueFormatter.markdownComment(event);
+        String commentText = formatter.markdownComment(event);
         JsonObject body = buildCommentBody(commentText);
         String url = config.baseUrl() + "/rest/api/3/issue/" + externalIssueId + "/comment";
 

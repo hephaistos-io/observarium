@@ -2,6 +2,7 @@ package io.hephaistos.observarium.github;
 
 import io.hephaistos.observarium.event.ExceptionEvent;
 import io.hephaistos.observarium.event.Severity;
+import io.hephaistos.observarium.posting.DefaultIssueFormatter;
 import io.hephaistos.observarium.posting.DuplicateSearchResult;
 import io.hephaistos.observarium.posting.IssueFormatter;
 import io.hephaistos.observarium.posting.PostingResult;
@@ -26,6 +27,8 @@ import static org.mockito.Mockito.*;
  * any real network calls.
  */
 class GitHubPostingServiceTest {
+
+    private final IssueFormatter formatter = new DefaultIssueFormatter();
 
     // -------------------------------------------------------------------------
     // GitHubConfig tests
@@ -99,7 +102,7 @@ class GitHubPostingServiceTest {
     @Test
     void issueFormatter_title_stripsDotSeparatedPackageName() {
         ExceptionEvent event = buildEvent("com.example.MyException", "something went wrong");
-        String title = IssueFormatter.title(event);
+        String title = formatter.title(event);
         assertEquals("[Observarium] MyException: something went wrong", title);
     }
 
@@ -107,7 +110,7 @@ class GitHubPostingServiceTest {
     void issueFormatter_title_truncatesLongMessage() {
         String longMessage = "a".repeat(100);
         ExceptionEvent event = buildEvent("MyException", longMessage);
-        String title = IssueFormatter.title(event);
+        String title = formatter.title(event);
         assertTrue(title.endsWith("..."));
         // Total after prefix "[Observarium] MyException: " is 28 chars + 80-char title segment
         assertTrue(title.length() <= "[Observarium] MyException: ".length() + 80);
@@ -121,14 +124,14 @@ class GitHubPostingServiceTest {
                 .rawStackTrace("stack")
                 .threadName("main")
                 .build();
-        String title = IssueFormatter.title(event);
+        String title = formatter.title(event);
         assertEquals("[Observarium] MyException: (no message)", title);
     }
 
     @Test
     void issueFormatter_markdownBody_containsFingerprintMarker() {
         ExceptionEvent event = buildEvent("MyException", "oops");
-        String body = IssueFormatter.markdownBody(event);
+        String body = formatter.markdownBody(event);
         assertTrue(body.contains("<!-- observarium:fingerprint:test-fingerprint -->"),
                 "Body must contain the fingerprint HTML comment for duplicate detection");
     }
@@ -136,21 +139,21 @@ class GitHubPostingServiceTest {
     @Test
     void issueFormatter_markdownBody_containsStackTrace() {
         ExceptionEvent event = buildEvent("MyException", "oops");
-        String body = IssueFormatter.markdownBody(event);
+        String body = formatter.markdownBody(event);
         assertTrue(body.contains("at com.example.Foo.bar(Foo.java:42)"));
     }
 
     @Test
     void issueFormatter_markdownComment_containsTimestamp() {
         ExceptionEvent event = buildEvent("MyException", "oops");
-        String comment = IssueFormatter.markdownComment(event);
+        String comment = formatter.markdownComment(event);
         assertTrue(comment.contains("## Occurred Again"));
         assertTrue(comment.contains("Timestamp"));
     }
 
     @Test
     void issueFormatter_fingerprintMarker_format() {
-        String marker = IssueFormatter.fingerprintMarker("abc123");
+        String marker = formatter.fingerprintMarker("abc123");
         assertEquals("<!-- observarium:fingerprint:abc123 -->", marker);
     }
 
@@ -181,7 +184,7 @@ class GitHubPostingServiceTest {
                 .thenReturn(httpResponse);
 
         GitHubPostingService service = new GitHubPostingService(
-                GitHubConfig.of("tok", "owner", "repo"), mockHttpClient);
+                GitHubConfig.of("tok", "owner", "repo"), mockHttpClient, new DefaultIssueFormatter());
 
         DuplicateSearchResult result = service.findDuplicate(buildEvent("MyException", "oops"));
 
@@ -202,7 +205,7 @@ class GitHubPostingServiceTest {
                 .thenReturn(httpResponse);
 
         GitHubPostingService service = new GitHubPostingService(
-                GitHubConfig.of("tok", "owner", "repo"), mockHttpClient);
+                GitHubConfig.of("tok", "owner", "repo"), mockHttpClient, new DefaultIssueFormatter());
 
         DuplicateSearchResult result = service.findDuplicate(buildEvent("MyException", "oops"));
 
@@ -220,7 +223,7 @@ class GitHubPostingServiceTest {
                 .thenReturn(httpResponse);
 
         GitHubPostingService service = new GitHubPostingService(
-                GitHubConfig.of("tok", "owner", "repo"), mockHttpClient);
+                GitHubConfig.of("tok", "owner", "repo"), mockHttpClient, new DefaultIssueFormatter());
 
         DuplicateSearchResult result = service.findDuplicate(buildEvent("MyException", "oops"));
 
@@ -234,7 +237,7 @@ class GitHubPostingServiceTest {
                 .thenThrow(new IOException("connection refused"));
 
         GitHubPostingService service = new GitHubPostingService(
-                GitHubConfig.of("tok", "owner", "repo"), mockHttpClient);
+                GitHubConfig.of("tok", "owner", "repo"), mockHttpClient, new DefaultIssueFormatter());
 
         DuplicateSearchResult result = service.findDuplicate(buildEvent("MyException", "oops"));
 
@@ -258,7 +261,7 @@ class GitHubPostingServiceTest {
                 .thenReturn(httpResponse);
 
         GitHubPostingService service = new GitHubPostingService(
-                GitHubConfig.of("tok", "owner", "repo"), mockHttpClient);
+                GitHubConfig.of("tok", "owner", "repo"), mockHttpClient, new DefaultIssueFormatter());
 
         PostingResult result = service.createIssue(buildEvent("MyException", "oops"));
 
@@ -278,7 +281,7 @@ class GitHubPostingServiceTest {
                 .thenReturn(httpResponse);
 
         GitHubPostingService service = new GitHubPostingService(
-                GitHubConfig.of("tok", "owner", "repo"), mockHttpClient);
+                GitHubConfig.of("tok", "owner", "repo"), mockHttpClient, new DefaultIssueFormatter());
 
         PostingResult result = service.createIssue(buildEvent("MyException", "oops"));
 
@@ -294,7 +297,7 @@ class GitHubPostingServiceTest {
                 .thenThrow(new IOException("timeout"));
 
         GitHubPostingService service = new GitHubPostingService(
-                GitHubConfig.of("tok", "owner", "repo"), mockHttpClient);
+                GitHubConfig.of("tok", "owner", "repo"), mockHttpClient, new DefaultIssueFormatter());
 
         PostingResult result = service.createIssue(buildEvent("MyException", "oops"));
 
@@ -319,7 +322,7 @@ class GitHubPostingServiceTest {
                 .thenReturn(httpResponse);
 
         GitHubPostingService service = new GitHubPostingService(
-                GitHubConfig.of("tok", "owner", "repo"), mockHttpClient);
+                GitHubConfig.of("tok", "owner", "repo"), mockHttpClient, new DefaultIssueFormatter());
 
         PostingResult result = service.commentOnIssue("7", buildEvent("MyException", "oops"));
 
@@ -338,7 +341,7 @@ class GitHubPostingServiceTest {
                 .thenReturn(httpResponse);
 
         GitHubPostingService service = new GitHubPostingService(
-                GitHubConfig.of("tok", "owner", "repo"), mockHttpClient);
+                GitHubConfig.of("tok", "owner", "repo"), mockHttpClient, new DefaultIssueFormatter());
 
         PostingResult result = service.commentOnIssue("9999", buildEvent("MyException", "oops"));
 

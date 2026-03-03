@@ -3,6 +3,7 @@ package io.hephaistos.observarium.jira;
 import com.google.gson.Gson;
 import io.hephaistos.observarium.event.ExceptionEvent;
 import io.hephaistos.observarium.event.Severity;
+import io.hephaistos.observarium.posting.DefaultIssueFormatter;
 import io.hephaistos.observarium.posting.DuplicateSearchResult;
 import io.hephaistos.observarium.posting.PostingResult;
 import org.junit.jupiter.api.BeforeEach;
@@ -284,7 +285,7 @@ class JiraPostingServiceTest {
                 """;
 
             JiraPostingService service = new JiraPostingService(
-                config, mockClient(mockResponse(200, jiraResponse)), new Gson());
+                config, mockClient(mockResponse(200, jiraResponse)), new Gson(), new DefaultIssueFormatter());
             DuplicateSearchResult result = service.findDuplicate(event);
 
             assertTrue(result.found());
@@ -298,7 +299,7 @@ class JiraPostingServiceTest {
             ExceptionEvent event = buildEvent("abc123def456xyz789");
 
             JiraPostingService service = new JiraPostingService(
-                config, mockClient(mockResponse(200, "{\"issues\":[],\"total\":0}")), new Gson());
+                config, mockClient(mockResponse(200, "{\"issues\":[],\"total\":0}")), new Gson(), new DefaultIssueFormatter());
             DuplicateSearchResult result = service.findDuplicate(event);
 
             assertFalse(result.found());
@@ -313,7 +314,7 @@ class JiraPostingServiceTest {
             JiraPostingService service = new JiraPostingService(
                 config,
                 mockClient(mockResponse(401, "{\"errorMessages\":[\"Unauthorized\"]}")),
-                new Gson());
+                new Gson(), new DefaultIssueFormatter());
             DuplicateSearchResult result = service.findDuplicate(event);
 
             assertFalse(result.found(), "HTTP error should result in notFound, not an exception");
@@ -325,7 +326,7 @@ class JiraPostingServiceTest {
             ExceptionEvent event = buildEvent("fp-network-error");
 
             JiraPostingService service = new JiraPostingService(
-                config, mockClientThrowing(new RuntimeException("Connection refused")), new Gson());
+                config, mockClientThrowing(new RuntimeException("Connection refused")), new Gson(), new DefaultIssueFormatter());
             DuplicateSearchResult result = service.findDuplicate(event);
 
             assertFalse(result.found(), "network error should be swallowed and result in notFound");
@@ -354,7 +355,7 @@ class JiraPostingServiceTest {
                 """;
 
             JiraPostingService service = new JiraPostingService(
-                config, mockClient(mockResponse(201, jiraResponse)), new Gson());
+                config, mockClient(mockResponse(201, jiraResponse)), new Gson(), new DefaultIssueFormatter());
             PostingResult result = service.createIssue(event);
 
             assertTrue(result.success());
@@ -371,7 +372,7 @@ class JiraPostingServiceTest {
             JiraPostingService service = new JiraPostingService(
                 config,
                 mockClient(mockResponse(400, "{\"errors\":{\"summary\":\"Field required\"}}")),
-                new Gson());
+                new Gson(), new DefaultIssueFormatter());
             PostingResult result = service.createIssue(event);
 
             assertFalse(result.success());
@@ -385,7 +386,7 @@ class JiraPostingServiceTest {
             ExceptionEvent event = buildEvent("fp-network");
 
             JiraPostingService service = new JiraPostingService(
-                config, mockClientThrowing(new RuntimeException("Timeout")), new Gson());
+                config, mockClientThrowing(new RuntimeException("Timeout")), new Gson(), new DefaultIssueFormatter());
             PostingResult result = service.createIssue(event);
 
             assertFalse(result.success());
@@ -414,7 +415,7 @@ class JiraPostingServiceTest {
                 """;
 
             JiraPostingService service = new JiraPostingService(
-                config, mockClient(mockResponse(201, jiraResponse)), new Gson());
+                config, mockClient(mockResponse(201, jiraResponse)), new Gson(), new DefaultIssueFormatter());
             PostingResult result = service.commentOnIssue("OBS-10", event);
 
             assertTrue(result.success());
@@ -430,7 +431,7 @@ class JiraPostingServiceTest {
             JiraPostingService service = new JiraPostingService(
                 config,
                 mockClient(mockResponse(404, "{\"errorMessages\":[\"Issue Does Not Exist\"]}")),
-                new Gson());
+                new Gson(), new DefaultIssueFormatter());
             PostingResult result = service.commentOnIssue("OBS-999", event);
 
             assertFalse(result.success());
@@ -444,7 +445,7 @@ class JiraPostingServiceTest {
             ExceptionEvent event = buildEvent("fp-net-comment");
 
             JiraPostingService service = new JiraPostingService(
-                config, mockClientThrowing(new RuntimeException("DNS failure")), new Gson());
+                config, mockClientThrowing(new RuntimeException("DNS failure")), new Gson(), new DefaultIssueFormatter());
             PostingResult result = service.commentOnIssue("OBS-5", event);
 
             assertFalse(result.success());

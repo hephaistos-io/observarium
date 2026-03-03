@@ -73,7 +73,7 @@ DuplicateSearchResult.found("ISSUE-42", "https://example.com/issues/42"); // dup
 
 ### Deduplication strategy recommendations
 
-- **Embed the fingerprint as metadata** — write `event.fingerprint()` into a field, label, tag, or HTML comment that you can query later. `IssueFormatter.fingerprintMarker(event.fingerprint())` produces `<!-- observarium:fingerprint:<sha256> -->` for Markdown bodies.
+- **Embed the fingerprint as metadata** — write `event.fingerprint()` into a field, label, tag, or HTML comment that you can query later. `DefaultIssueFormatter.fingerprintMarker()` produces `<!-- observarium:fingerprint:<sha256> -->` for Markdown bodies, or implement `IssueFormatter` with your own marker format.
 - **Search only open/active issues** — if a duplicate issue was closed or resolved, creating a fresh issue is usually the right behaviour.
 - **Fail safe to `notFound()`** — if the search API returns an error, return `DuplicateSearchResult.notFound()` so a new issue is created rather than swallowing the event.
 - **No dedup? Return `notFound()` always** — backends like email cannot search previous messages; returning `notFound()` unconditionally is correct for them.

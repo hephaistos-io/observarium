@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import io.hephaistos.observarium.event.ExceptionEvent;
+import io.hephaistos.observarium.posting.DefaultIssueFormatter;
 import io.hephaistos.observarium.posting.DuplicateSearchResult;
 import io.hephaistos.observarium.posting.IssueFormatter;
 import io.hephaistos.observarium.posting.PostingResult;
@@ -41,20 +42,26 @@ public class GitLabPostingService implements PostingService {
     private final GitLabConfig config;
     private final HttpClient httpClient;
     private final Gson gson;
+    private final IssueFormatter formatter;
 
     public GitLabPostingService(GitLabConfig config) {
         this(config, HttpClient.newBuilder()
                 .connectTimeout(REQUEST_TIMEOUT)
-                .build(), new Gson());
+                .build(), new Gson(), new DefaultIssueFormatter());
     }
 
-    /**
-     * Package-private constructor for testing with a custom HttpClient.
-     */
-    GitLabPostingService(GitLabConfig config, HttpClient httpClient, Gson gson) {
-        this.config = config;
-        this.httpClient = httpClient;
-        this.gson = gson;
+    public GitLabPostingService(GitLabConfig config, IssueFormatter formatter) {
+        this(config, HttpClient.newBuilder()
+                .connectTimeout(REQUEST_TIMEOUT)
+                .build(), new Gson(), formatter);
+    }
+
+    /** Package-private constructor for testing with a custom HttpClient. */
+    GitLabPostingService(GitLabConfig config, HttpClient httpClient, Gson gson, IssueFormatter formatter) {
+        this.config = java.util.Objects.requireNonNull(config, "config must not be null");
+        this.httpClient = java.util.Objects.requireNonNull(httpClient, "httpClient must not be null");
+        this.gson = java.util.Objects.requireNonNull(gson, "gson must not be null");
+        this.formatter = java.util.Objects.requireNonNull(formatter, "formatter must not be null");
     }
 
     @Override
@@ -116,8 +123,8 @@ public class GitLabPostingService implements PostingService {
 
         String label = fingerprintLabel(event.fingerprint());
         JsonObject body = new JsonObject();
-        body.addProperty("title", IssueFormatter.title(event));
-        body.addProperty("description", IssueFormatter.markdownBody(event));
+        body.addProperty("title", formatter.title(event));
+        body.addProperty("description", formatter.markdownBody(event));
         body.addProperty("labels", "observarium," + label);
 
         HttpRequest request = HttpRequest.newBuilder()
@@ -159,7 +166,7 @@ public class GitLabPostingService implements PostingService {
             + "/notes";
 
         JsonObject body = new JsonObject();
-        body.addProperty("body", IssueFormatter.markdownComment(event));
+        body.addProperty("body", formatter.markdownComment(event));
 
         HttpRequest request = HttpRequest.newBuilder()
             .uri(URI.create(url))

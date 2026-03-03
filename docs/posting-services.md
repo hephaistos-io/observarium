@@ -33,7 +33,7 @@ If your application already depends on one of these client libraries for other p
 
 1. `findDuplicate` searches open issues in the repository using the GitHub Issues API label filter. Each issue created by Observarium carries a label of the form `observarium-{first12charsOfFingerprint}`, and `findDuplicate` queries for open issues with that label.
 2. If a match is found, `commentOnIssue` adds a Markdown comment to the existing issue with the new timestamp, thread name, trace ID (if present), and tags.
-3. If no match is found, `createIssue` opens a new issue using `IssueFormatter.title()` and `IssueFormatter.markdownBody()`. The issue is tagged with both the `labelPrefix` label (default `observarium`) and the fingerprint-specific label.
+3. If no match is found, `createIssue` opens a new issue using the injected `IssueFormatter` to produce the title and Markdown body. The issue is tagged with both the `labelPrefix` label (default `observarium`) and the fingerprint-specific label.
 
 ### Configuration
 
@@ -240,7 +240,7 @@ Every created issue receives two GitLab labels: the `observarium` umbrella label
 
 ### How it works
 
-`createIssue` sends one email per captured exception. The subject line follows `IssueFormatter.title()` format and the body is the Markdown issue body. There is no deduplication: every event produces a new email. `findDuplicate` always returns `DuplicateSearchResult.notFound()`.
+`createIssue` sends one email per captured exception. The subject line is produced by the injected `IssueFormatter` and the body is a plain-text rendering of the event. There is no deduplication: every event produces a new email. `findDuplicate` always returns `DuplicateSearchResult.notFound()`.
 
 ### Configuration
 

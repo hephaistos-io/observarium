@@ -10,7 +10,7 @@ When `captureException()` is called, `Observarium` immediately reads trace conte
 
 This eager capture is necessary because SLF4J MDC is thread-local: by the time the background worker processes the event, the caller's MDC context is no longer visible. `ExceptionProcessor` receives the already-captured trace and span IDs as plain strings and never accesses MDC itself.
 
-If both values are `null`, the issue body simply omits the trace fields. If either value is present, `IssueFormatter.markdownBody()` includes them:
+If both values are `null`, the issue body simply omits the trace fields. If either value is present, the `IssueFormatter` includes them in the Markdown body:
 
 ```markdown
 **Trace ID:** `4bf92f3577b34da6a3ce929d0e0e4736`
@@ -183,7 +183,7 @@ com.example.PaymentException: Payment gateway timeout
 
 The trace ID can be copy-pasted directly into your observability platform (Jaeger, Tempo, Zipkin, Datadog, etc.) to jump to the exact trace that produced the exception.
 
-Recurrence comments produced by `IssueFormatter.markdownComment()` also include the trace and span IDs, so you can correlate each individual occurrence with its own trace.
+Recurrence comments produced by the `IssueFormatter` also include the trace and span IDs, so you can correlate each individual occurrence with its own trace.
 
 ---
 

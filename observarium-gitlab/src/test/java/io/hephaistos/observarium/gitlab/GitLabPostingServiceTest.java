@@ -3,6 +3,7 @@ package io.hephaistos.observarium.gitlab;
 import com.google.gson.Gson;
 import io.hephaistos.observarium.event.ExceptionEvent;
 import io.hephaistos.observarium.event.Severity;
+import io.hephaistos.observarium.posting.DefaultIssueFormatter;
 import io.hephaistos.observarium.posting.DuplicateSearchResult;
 import io.hephaistos.observarium.posting.PostingResult;
 import org.junit.jupiter.api.BeforeEach;
@@ -63,7 +64,7 @@ class GitLabPostingServiceTest {
 
     @Test
     void name_returnsGitlab() {
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson());
+        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
         assertEquals("gitlab", service.name());
     }
 
@@ -86,7 +87,7 @@ class GitLabPostingServiceTest {
         when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson());
+        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
         DuplicateSearchResult result = service.findDuplicate(buildEvent("SomeException", "boom"));
 
         assertTrue(result.found());
@@ -110,7 +111,7 @@ class GitLabPostingServiceTest {
         when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson());
+        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
         DuplicateSearchResult result = service.findDuplicate(buildEvent("SomeException", "boom"));
 
         assertTrue(result.found());
@@ -126,7 +127,7 @@ class GitLabPostingServiceTest {
         when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson());
+        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
         DuplicateSearchResult result = service.findDuplicate(buildEvent("SomeException", "boom"));
 
         assertFalse(result.found());
@@ -146,7 +147,7 @@ class GitLabPostingServiceTest {
         when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson());
+        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
         DuplicateSearchResult result = service.findDuplicate(buildEvent("SomeException", "boom"));
 
         assertFalse(result.found());
@@ -161,7 +162,7 @@ class GitLabPostingServiceTest {
         when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson());
+        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
         DuplicateSearchResult result = service.findDuplicate(buildEvent("SomeException", "boom"));
 
         assertFalse(result.found());
@@ -173,7 +174,7 @@ class GitLabPostingServiceTest {
         when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenThrow(new IOException("connection refused"));
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson());
+        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
         DuplicateSearchResult result = service.findDuplicate(buildEvent("SomeException", "boom"));
 
         assertFalse(result.found());
@@ -199,7 +200,7 @@ class GitLabPostingServiceTest {
         when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson());
+        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
         PostingResult result = service.createIssue(buildEvent("SomeException", "boom"));
 
         assertTrue(result.success());
@@ -224,7 +225,7 @@ class GitLabPostingServiceTest {
         when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson());
+        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
         PostingResult result = service.createIssue(buildEvent("SomeException", "boom"));
 
         assertTrue(result.success());
@@ -244,7 +245,7 @@ class GitLabPostingServiceTest {
         when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson());
+        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
         PostingResult result = service.createIssue(buildEvent("SomeException", "boom"));
 
         assertFalse(result.success());
@@ -261,7 +262,7 @@ class GitLabPostingServiceTest {
         when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson());
+        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
         PostingResult result = service.createIssue(buildEvent("SomeException", "boom"));
 
         assertFalse(result.success());
@@ -274,7 +275,7 @@ class GitLabPostingServiceTest {
         when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenThrow(new IOException("timeout"));
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson());
+        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
         PostingResult result = service.createIssue(buildEvent("SomeException", "boom"));
 
         assertFalse(result.success());
@@ -302,7 +303,7 @@ class GitLabPostingServiceTest {
         when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson());
+        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
         PostingResult result = service.commentOnIssue("5", buildEvent("SomeException", "boom"));
 
         assertTrue(result.success());
@@ -327,7 +328,7 @@ class GitLabPostingServiceTest {
         when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson());
+        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
         PostingResult result = service.commentOnIssue("10", buildEvent("SomeException", "boom"));
 
         assertTrue(result.success());
@@ -347,7 +348,7 @@ class GitLabPostingServiceTest {
         when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson());
+        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
         PostingResult result = service.commentOnIssue("9999", buildEvent("SomeException", "boom"));
 
         assertFalse(result.success());
@@ -364,7 +365,7 @@ class GitLabPostingServiceTest {
         when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson());
+        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
         PostingResult result = service.commentOnIssue("1", buildEvent("SomeException", "boom"));
 
         assertFalse(result.success());
@@ -377,7 +378,7 @@ class GitLabPostingServiceTest {
         when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenThrow(new IOException("connection reset"));
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson());
+        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
         PostingResult result = service.commentOnIssue("5", buildEvent("SomeException", "boom"));
 
         assertFalse(result.success());
@@ -399,7 +400,7 @@ class GitLabPostingServiceTest {
         when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(NAMESPACE_CONFIG, mockHttpClient, new Gson());
+        GitLabPostingService service = new GitLabPostingService(NAMESPACE_CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
         service.findDuplicate(buildEvent("SomeException", "boom"));
 
         verify(mockHttpClient).send(
@@ -421,7 +422,7 @@ class GitLabPostingServiceTest {
         when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(NAMESPACE_CONFIG, mockHttpClient, new Gson());
+        GitLabPostingService service = new GitLabPostingService(NAMESPACE_CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
         service.createIssue(buildEvent("SomeException", "boom"));
 
         verify(mockHttpClient).send(
@@ -441,7 +442,7 @@ class GitLabPostingServiceTest {
         when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(NAMESPACE_CONFIG, mockHttpClient, new Gson());
+        GitLabPostingService service = new GitLabPostingService(NAMESPACE_CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
         service.commentOnIssue("3", buildEvent("SomeException", "boom"));
 
         verify(mockHttpClient).send(
@@ -464,7 +465,7 @@ class GitLabPostingServiceTest {
         when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson());
+        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
         service.findDuplicate(buildEvent("SomeException", "boom", "abcdef123456789xyz012345"));
 
         verify(mockHttpClient).send(
@@ -483,7 +484,7 @@ class GitLabPostingServiceTest {
         when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson());
+        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
         service.findDuplicate(buildEvent("SomeException", "boom", "short"));
 
         verify(mockHttpClient).send(
@@ -501,7 +502,7 @@ class GitLabPostingServiceTest {
         when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
                 .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson());
+        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
         service.findDuplicate(buildEvent("SomeException", "boom", "exactly12chr"));
 
         verify(mockHttpClient).send(

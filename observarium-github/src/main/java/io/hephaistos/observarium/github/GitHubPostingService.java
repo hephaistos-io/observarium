@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import io.hephaistos.observarium.event.ExceptionEvent;
+import io.hephaistos.observarium.posting.DefaultIssueFormatter;
 import io.hephaistos.observarium.posting.DuplicateSearchResult;
 import io.hephaistos.observarium.posting.IssueFormatter;
 import io.hephaistos.observarium.posting.PostingResult;
@@ -39,20 +40,26 @@ public class GitHubPostingService implements PostingService {
     private final GitHubConfig config;
     private final HttpClient httpClient;
     private final Gson gson;
+    private final IssueFormatter formatter;
 
     public GitHubPostingService(GitHubConfig config) {
-        this.config = config;
-        this.httpClient = HttpClient.newBuilder()
+        this(config, HttpClient.newBuilder()
                 .connectTimeout(REQUEST_TIMEOUT)
-                .build();
-        this.gson = new Gson();
+                .build(), new DefaultIssueFormatter());
+    }
+
+    public GitHubPostingService(GitHubConfig config, IssueFormatter formatter) {
+        this(config, HttpClient.newBuilder()
+                .connectTimeout(REQUEST_TIMEOUT)
+                .build(), formatter);
     }
 
     /** Package-private constructor for tests — allows injecting a mock/stub {@link HttpClient}. */
-    GitHubPostingService(GitHubConfig config, HttpClient httpClient) {
-        this.config = config;
-        this.httpClient = httpClient;
+    GitHubPostingService(GitHubConfig config, HttpClient httpClient, IssueFormatter formatter) {
+        this.config = java.util.Objects.requireNonNull(config, "config must not be null");
+        this.httpClient = java.util.Objects.requireNonNull(httpClient, "httpClient must not be null");
         this.gson = new Gson();
+        this.formatter = java.util.Objects.requireNonNull(formatter, "formatter must not be null");
     }
 
     @Override
@@ -118,8 +125,8 @@ public class GitHubPostingService implements PostingService {
         String url = API_BASE + "/repos/" + config.owner() + "/" + config.repo() + "/issues";
 
         JsonObject requestBody = new JsonObject();
-        requestBody.addProperty("title", IssueFormatter.title(event));
-        requestBody.addProperty("body", IssueFormatter.markdownBody(event));
+        requestBody.addProperty("title", formatter.title(event));
+        requestBody.addProperty("body", formatter.markdownBody(event));
 
         JsonArray labels = new JsonArray();
         labels.add(config.labelPrefix());
@@ -167,7 +174,7 @@ public class GitHubPostingService implements PostingService {
                 + "/issues/" + externalIssueId + "/comments";
 
         JsonObject requestBody = new JsonObject();
-        requestBody.addProperty("body", IssueFormatter.markdownComment(event));
+        requestBody.addProperty("body", formatter.markdownComment(event));
 
         log.debug("Adding comment to GitHub issue. number={} fingerprint={}", externalIssueId, event.fingerprint());
 

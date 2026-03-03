@@ -1,6 +1,7 @@
 package io.hephaistos.observarium.email;
 
 import io.hephaistos.observarium.event.ExceptionEvent;
+import io.hephaistos.observarium.posting.DefaultIssueFormatter;
 import io.hephaistos.observarium.posting.DuplicateSearchResult;
 import io.hephaistos.observarium.posting.IssueFormatter;
 import io.hephaistos.observarium.posting.PostingResult;
@@ -40,9 +41,15 @@ public class EmailPostingService implements PostingService {
         "Email posting service does not support commenting on existing issues";
 
     private final EmailConfig config;
+    private final IssueFormatter formatter;
 
     public EmailPostingService(EmailConfig config) {
-        this.config = config;
+        this(config, new DefaultIssueFormatter());
+    }
+
+    public EmailPostingService(EmailConfig config, IssueFormatter formatter) {
+        this.config = java.util.Objects.requireNonNull(config, "config must not be null");
+        this.formatter = java.util.Objects.requireNonNull(formatter, "formatter must not be null");
     }
 
     @Override
@@ -75,7 +82,7 @@ public class EmailPostingService implements PostingService {
             MimeMessage message = new MimeMessage(session);
             message.setFrom(new InternetAddress(config.from()));
             message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(config.to()));
-            message.setSubject(IssueFormatter.title(event));
+            message.setSubject(formatter.title(event));
             message.setText(buildPlainTextBody(event), "UTF-8");
 
             Transport.send(message);

@@ -7,5 +7,9 @@
  * tracker with duplicate reports. {@link io.hephaistos.observarium.posting.PostingResult} and
  * {@link io.hephaistos.observarium.posting.DuplicateSearchResult} carry the outcomes back to the
  * pipeline.
+ *
+ * <p>Issue titles, bodies, and comments are produced by an {@link io.hephaistos.observarium.posting.IssueFormatter}.
+ * The {@link io.hephaistos.observarium.posting.DefaultIssueFormatter} ships a sensible default;
+ * inject a custom implementation into any {@code PostingService} constructor to control the output format.
  */
 package io.hephaistos.observarium.posting;
