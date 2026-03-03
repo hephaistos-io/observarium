@@ -12,9 +12,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 
 /**
  * PostingService implementation that creates and comments on GitLab issues.
@@ -33,13 +36,16 @@ public class GitLabPostingService implements PostingService {
     private static final String PRIVATE_TOKEN_HEADER = "PRIVATE-TOKEN";
     private static final String CONTENT_TYPE_HEADER = "Content-Type";
     private static final String APPLICATION_JSON = "application/json";
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
 
     private final GitLabConfig config;
     private final HttpClient httpClient;
     private final Gson gson;
 
     public GitLabPostingService(GitLabConfig config) {
-        this(config, HttpClient.newHttpClient(), new Gson());
+        this(config, HttpClient.newBuilder()
+                .connectTimeout(REQUEST_TIMEOUT)
+                .build(), new Gson());
     }
 
     /**
@@ -65,11 +71,12 @@ public class GitLabPostingService implements PostingService {
     public DuplicateSearchResult findDuplicate(ExceptionEvent event) {
         String label = fingerprintLabel(event.fingerprint());
         String url = config.baseUrl()
-            + "/api/v4/projects/" + config.projectId()
+            + "/api/v4/projects/" + encodedProjectId()
             + "/issues?labels=" + label + "&state=opened";
 
         HttpRequest request = HttpRequest.newBuilder()
             .uri(URI.create(url))
+            .timeout(REQUEST_TIMEOUT)
             .header(PRIVATE_TOKEN_HEADER, config.privateToken())
             .GET()
             .build();
@@ -104,7 +111,7 @@ public class GitLabPostingService implements PostingService {
     @Override
     public PostingResult createIssue(ExceptionEvent event) {
         String url = config.baseUrl()
-            + "/api/v4/projects/" + config.projectId()
+            + "/api/v4/projects/" + encodedProjectId()
             + "/issues";
 
         String label = fingerprintLabel(event.fingerprint());
@@ -115,6 +122,7 @@ public class GitLabPostingService implements PostingService {
 
         HttpRequest request = HttpRequest.newBuilder()
             .uri(URI.create(url))
+            .timeout(REQUEST_TIMEOUT)
             .header(PRIVATE_TOKEN_HEADER, config.privateToken())
             .header(CONTENT_TYPE_HEADER, APPLICATION_JSON)
             .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(body)))
@@ -146,7 +154,7 @@ public class GitLabPostingService implements PostingService {
     @Override
     public PostingResult commentOnIssue(String externalIssueId, ExceptionEvent event) {
         String url = config.baseUrl()
-            + "/api/v4/projects/" + config.projectId()
+            + "/api/v4/projects/" + encodedProjectId()
             + "/issues/" + externalIssueId
             + "/notes";
 
@@ -155,6 +163,7 @@ public class GitLabPostingService implements PostingService {
 
         HttpRequest request = HttpRequest.newBuilder()
             .uri(URI.create(url))
+            .timeout(REQUEST_TIMEOUT)
             .header(PRIVATE_TOKEN_HEADER, config.privateToken())
             .header(CONTENT_TYPE_HEADER, APPLICATION_JSON)
             .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(body)))
@@ -179,6 +188,10 @@ public class GitLabPostingService implements PostingService {
     }
 
     // --- helpers ---
+
+    private String encodedProjectId() {
+        return URLEncoder.encode(config.projectId(), StandardCharsets.UTF_8);
+    }
 
     private static String fingerprintLabel(String fingerprint) {
         String hash12 = fingerprint.length() > 12 ? fingerprint.substring(0, 12) : fingerprint;
