@@ -31,34 +31,16 @@ public class MdcTraceContextProvider implements TraceContextProvider {
         this("trace_id", "span_id");
     }
 
-    /**
-     * Creates a provider that reads trace context from the specified MDC keys.
-     *
-     * @param traceIdKey the MDC key under which the trace ID is stored; never null
-     * @param spanIdKey  the MDC key under which the span ID is stored; never null
-     */
     public MdcTraceContextProvider(String traceIdKey, String spanIdKey) {
         this.traceIdKey = traceIdKey;
         this.spanIdKey = spanIdKey;
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * @return the value of the configured trace ID MDC key on the calling thread, or null if
-     *         the key is absent or the MDC is not populated
-     */
     @Override
     public String getTraceId() {
         return MDC.get(traceIdKey);
     }
 
-    /**
-     * {@inheritDoc}
-     *
-     * @return the value of the configured span ID MDC key on the calling thread, or null if
-     *         the key is absent or the MDC is not populated
-     */
     @Override
     public String getSpanId() {
         return MDC.get(spanIdKey);

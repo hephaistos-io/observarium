@@ -19,20 +19,10 @@ public record DuplicateSearchResult(
     String url
 ) {
 
-    /**
-     * Returns a result indicating that no matching issue was found in the external tracker.
-     */
     public static DuplicateSearchResult notFound() {
         return new DuplicateSearchResult(false, null, null);
     }
 
-    /**
-     * Returns a result indicating that a matching issue was found.
-     *
-     * @param externalIssueId the identifier of the existing issue in the external tracker,
-     *                        never {@code null}
-     * @param url             the URL of the existing issue, never {@code null}
-     */
     public static DuplicateSearchResult found(String externalIssueId, String url) {
         return new DuplicateSearchResult(true, externalIssueId, url);
     }

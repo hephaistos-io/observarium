@@ -42,11 +42,6 @@ public class DefaultDataScrubber implements DataScrubber {
     private final ScrubLevel level;
     private final List<Pattern> additionalPatterns;
 
-    /**
-     * Creates a scrubber that applies only the built-in patterns for the given level.
-     *
-     * @param level the scrubbing aggressiveness; never null
-     */
     public DefaultDataScrubber(ScrubLevel level) {
         this(level, List.of());
     }
@@ -68,14 +63,8 @@ public class DefaultDataScrubber implements DataScrubber {
     }
 
     /**
-     * {@inheritDoc}
-     *
-     * <p>Returns the input unchanged when it is {@code null} or when the configured level is
-     * {@link ScrubLevel#NONE} and no additional patterns were supplied. All replacements use
-     * the literal string {@code [REDACTED]}.
-     *
-     * @param text the raw string to scrub, may be null
-     * @return the scrubbed string, or null if {@code text} was null
+     * Returns the input unchanged when the configured level is {@link ScrubLevel#NONE} and no
+     * additional patterns were supplied. All replacements use the literal string {@code [REDACTED]}.
      */
     @Override
     public String scrub(String text) {

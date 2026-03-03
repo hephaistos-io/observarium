@@ -48,9 +48,6 @@ public record ExceptionEvent(
     Map<String, String> extra
 ) {
 
-    /**
-     * Returns a new {@link Builder} for constructing an {@code ExceptionEvent}.
-     */
     public static Builder builder() {
         return new Builder();
     }
@@ -81,63 +78,19 @@ public record ExceptionEvent(
         private Map<String, String> tags = Map.of();
         private Map<String, String> extra = Map.of();
 
-        /**
-         * Sets the stable deduplication key computed by
-         * {@link io.hephaistos.observarium.fingerprint.ExceptionFingerprinter}.
-         */
         public Builder fingerprint(String fingerprint) { this.fingerprint = fingerprint; return this; }
-
-        /** Sets the fully-qualified exception class name. */
         public Builder exceptionClass(String exceptionClass) { this.exceptionClass = exceptionClass; return this; }
-
-        /**
-         * Sets the exception message. May be {@code null} when the exception has no message.
-         */
         public Builder message(String message) { this.message = message; return this; }
-
-        /**
-         * Sets the structured stack frames. The provided list is copied defensively.
-         */
         public Builder stackTrace(List<String> stackTrace) { this.stackTrace = List.copyOf(stackTrace); return this; }
-
-        /**
-         * Sets the full printed stack trace including cause chains, as produced by
-         * {@link Throwable#printStackTrace()}.
-         */
         public Builder rawStackTrace(String rawStackTrace) { this.rawStackTrace = rawStackTrace; return this; }
-
-        /** Sets the severity. Defaults to {@link Severity#ERROR} if not called. */
         public Builder severity(Severity severity) { this.severity = severity; return this; }
-
-        /** Sets the time at which the exception was captured. */
         public Builder timestamp(Instant timestamp) { this.timestamp = timestamp; return this; }
-
-        /** Sets the name of the thread that captured the exception. */
         public Builder threadName(String threadName) { this.threadName = threadName; return this; }
-
-        /**
-         * Sets the distributed trace ID. Pass {@code null} when no tracing context is
-         * available.
-         */
         public Builder traceId(String traceId) { this.traceId = traceId; return this; }
-
-        /**
-         * Sets the distributed span ID. Pass {@code null} when no tracing context is
-         * available.
-         */
         public Builder spanId(String spanId) { this.spanId = spanId; return this; }
-
-        /**
-         * Sets caller-supplied metadata tags. The provided map is copied defensively.
-         */
         public Builder tags(Map<String, String> tags) { this.tags = Map.copyOf(tags); return this; }
-
-        /**
-         * Sets system-collected metadata. The provided map is copied defensively.
-         */
         public Builder extra(Map<String, String> extra) { this.extra = Map.copyOf(extra); return this; }
 
-        /** Builds and returns the {@link ExceptionEvent}. */
         public ExceptionEvent build() {
             return new ExceptionEvent(
                 fingerprint, exceptionClass, message, stackTrace,

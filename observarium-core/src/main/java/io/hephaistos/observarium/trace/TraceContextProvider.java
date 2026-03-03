@@ -20,19 +20,7 @@ package io.hephaistos.observarium.trace;
  */
 public interface TraceContextProvider {
 
-    /**
-     * Returns the trace ID for the current execution context, or {@code null} if no trace is
-     * active or the context cannot be determined from the calling thread.
-     *
-     * @return the trace ID string, or null
-     */
     String getTraceId();
 
-    /**
-     * Returns the span ID for the current execution context, or {@code null} if no span is
-     * active or the context cannot be determined from the calling thread.
-     *
-     * @return the span ID string, or null
-     */
     String getSpanId();
 }

@@ -31,11 +31,6 @@ public class ObservariumExceptionHandler implements Thread.UncaughtExceptionHand
     private final Observarium observarium;
     private final Thread.UncaughtExceptionHandler delegate;
 
-    /**
-     * Creates a handler that reports to the given {@link Observarium} instance with no delegate.
-     *
-     * @param observarium the Observarium instance to report exceptions through; must not be null
-     */
     public ObservariumExceptionHandler(Observarium observarium) {
         this(observarium, null);
     }

@@ -181,11 +181,6 @@ public final class Observarium {
         executor.shutdown();
     }
 
-    /**
-     * Returns a new {@link Builder} for constructing an {@link Observarium} instance.
-     *
-     * @return a fresh {@link Builder}; never {@code null}
-     */
     public static Builder builder() {
         return new Builder();
     }

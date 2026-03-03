@@ -24,21 +24,10 @@ public record PostingResult(
     String errorMessage
 ) {
 
-    /**
-     * Returns a successful result carrying the tracker-assigned issue identifier and its URL.
-     *
-     * @param externalIssueId the identifier assigned by the external tracker, never {@code null}
-     * @param url             the URL of the created or updated issue, never {@code null}
-     */
     public static PostingResult success(String externalIssueId, String url) {
         return new PostingResult(true, externalIssueId, url, null);
     }
 
-    /**
-     * Returns a failure result carrying a human-readable description of what went wrong.
-     *
-     * @param errorMessage a description of the failure, never {@code null}
-     */
     public static PostingResult failure(String errorMessage) {
         return new PostingResult(false, null, null, errorMessage);
     }

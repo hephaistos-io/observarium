@@ -37,14 +37,6 @@ public class ExceptionProcessor {
     private final DataScrubber scrubber;
     private final List<PostingService> postingServices;
 
-    /**
-     * Creates a new processor with the given collaborators.
-     *
-     * @param fingerprinter   produces a stable fingerprint for deduplication across services
-     * @param scrubber        redacts sensitive data from the exception message and stack trace
-     * @param postingServices the services to which processed events will be posted; the list is
-     *                        copied defensively and must not be null
-     */
     public ExceptionProcessor(
             ExceptionFingerprinter fingerprinter,
             DataScrubber scrubber,

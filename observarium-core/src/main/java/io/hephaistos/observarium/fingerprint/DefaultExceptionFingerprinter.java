@@ -35,14 +35,10 @@ public class DefaultExceptionFingerprinter implements ExceptionFingerprinter {
     private static final int MAX_CAUSE_DEPTH = 10;
 
     /**
-     * {@inheritDoc}
+     * Stable across restarts provided the exception type and call-site structure do not change.
+     * Not affected by the exception message, thread name, timestamps, or line numbers.
      *
-     * <p>The fingerprint is stable across restarts provided the exception type and call-site
-     * structure do not change. It is not affected by the exception message, thread name,
-     * timestamps, or line numbers.
-     *
-     * @param throwable the exception to fingerprint; never null
-     * @return a 64-character lowercase hex SHA-256 digest; never null
+     * @return a 64-character lowercase hex SHA-256 digest
      */
     @Override
     public String fingerprint(Throwable throwable) {
