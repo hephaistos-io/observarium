@@ -80,25 +80,25 @@ public class ExceptionProcessor {
                                         Map<String, String> tags,
                                         String callerThreadName,
                                         String traceId, String spanId) {
-        ExceptionEvent event = buildEvent(throwable, severity, tags,
+        var event = buildEvent(throwable, severity, tags,
                 callerThreadName, traceId, spanId);
-        List<PostingResult> results = new ArrayList<>();
+        var results = new ArrayList<PostingResult>();
 
         for (PostingService service : postingServices) {
             try {
-                DuplicateSearchResult dup = service.findDuplicate(event);
-                if (dup.found()) {
+                var duplicate = service.findDuplicate(event);
+                if (duplicate.found()) {
                     log.info("Duplicate found on {} (issue {}), adding comment",
-                        service.name(), dup.externalIssueId());
-                    results.add(service.commentOnIssue(dup.externalIssueId(), event));
+                        service.name(), duplicate.externalIssueId());
+                    results.add(service.commentOnIssue(duplicate.externalIssueId(), event));
                 } else {
                     log.info("No duplicate on {}, creating new issue", service.name());
                     results.add(service.createIssue(event));
                 }
-            } catch (Exception e) {
-                log.error("Failed to post to {}: {}", service.name(), e.getMessage(), e);
+            } catch (Exception exception) {
+                log.error("Failed to post to {}: {}", service.name(), exception.getMessage(), exception);
                 results.add(PostingResult.failure(
-                    "Service " + service.name() + ": " + e.getMessage()));
+                    "Service " + service.name() + ": " + exception.getMessage()));
             }
         }
         return results;
@@ -108,10 +108,10 @@ public class ExceptionProcessor {
                                        Map<String, String> tags,
                                        String callerThreadName,
                                        String traceId, String spanId) {
-        String fingerprint = fingerprinter.fingerprint(throwable);
-        String message = scrubber.scrub(throwable.getMessage());
-        String rawTrace = scrubber.scrub(getFullStackTrace(throwable));
-        List<String> frames = new ArrayList<>();
+        var fingerprint = fingerprinter.fingerprint(throwable);
+        var message = scrubber.scrub(throwable.getMessage());
+        var rawStackTrace = scrubber.scrub(getFullStackTrace(throwable));
+        var frames = new ArrayList<String>();
         for (StackTraceElement frame : throwable.getStackTrace()) {
             frames.add(frame.toString());
         }
@@ -121,7 +121,7 @@ public class ExceptionProcessor {
             .exceptionClass(throwable.getClass().getName())
             .message(message)
             .stackTrace(frames)
-            .rawStackTrace(rawTrace)
+            .rawStackTrace(rawStackTrace)
             .severity(severity)
             .timestamp(Instant.now())
             .threadName(callerThreadName)
@@ -136,8 +136,8 @@ public class ExceptionProcessor {
     }
 
     private static String getFullStackTrace(Throwable throwable) {
-        StringWriter sw = new StringWriter();
-        throwable.printStackTrace(new PrintWriter(sw));
-        return sw.toString();
+        var stackWriter = new StringWriter();
+        throwable.printStackTrace(new PrintWriter(stackWriter));
+        return stackWriter.toString();
     }
 }

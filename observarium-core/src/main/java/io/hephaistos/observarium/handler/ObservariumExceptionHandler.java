@@ -61,17 +61,17 @@ public class ObservariumExceptionHandler implements Thread.UncaughtExceptionHand
      * The configured {@link #delegate} is always invoked afterwards, even if reporting fails.
      */
     @Override
-    public void uncaughtException(Thread t, Throwable e) {
+    public void uncaughtException(Thread thread, Throwable exception) {
         try {
             // Block briefly to ensure the fatal exception report is delivered
             // before the JVM exits.
-            observarium.captureException(e, Severity.FATAL)
+            observarium.captureException(exception, Severity.FATAL)
                     .get(FATAL_WAIT_SECONDS, TimeUnit.SECONDS);
-        } catch (Exception ex) {
-            log.error("Failed to deliver fatal exception report", ex);
+        } catch (Exception deliveryFailure) {
+            log.error("Failed to deliver fatal exception report", deliveryFailure);
         }
         if (delegate != null) {
-            delegate.uncaughtException(t, e);
+            delegate.uncaughtException(thread, exception);
         }
     }
 

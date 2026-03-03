@@ -83,13 +83,13 @@ public class DefaultDataScrubber implements DataScrubber {
             return text;
         }
         String result = text;
-        for (PatternLevel pl : PATTERNS) {
-            if (pl.level.ordinal() <= level.ordinal()) {
-                result = pl.pattern.matcher(result).replaceAll(REDACTED);
+        for (var patternLevel : PATTERNS) {
+            if (patternLevel.level.ordinal() <= level.ordinal()) {
+                result = patternLevel.pattern.matcher(result).replaceAll(REDACTED);
             }
         }
-        for (Pattern p : additionalPatterns) {
-            result = p.matcher(result).replaceAll(REDACTED);
+        for (var pattern : additionalPatterns) {
+            result = pattern.matcher(result).replaceAll(REDACTED);
         }
         return result;
     }

@@ -46,21 +46,21 @@ public class DefaultExceptionFingerprinter implements ExceptionFingerprinter {
      */
     @Override
     public String fingerprint(Throwable throwable) {
-        var sb = new StringBuilder();
-        appendExceptionFrames(sb, throwable);
+        var fingerprintInput = new StringBuilder();
+        appendExceptionFrames(fingerprintInput, throwable);
 
         // Walk the cause chain with cycle detection and depth limit.
-        Set<Throwable> seen = Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+        var seen = Collections.newSetFromMap(new java.util.IdentityHashMap<Throwable, Boolean>());
         seen.add(throwable);
-        Throwable cause = throwable.getCause();
+        var cause = throwable.getCause();
         int depth = 0;
         while (cause != null && depth < MAX_CAUSE_DEPTH && seen.add(cause)) {
-            sb.append("\ncaused_by:");
-            appendExceptionFrames(sb, cause);
+            fingerprintInput.append("\ncaused_by:");
+            appendExceptionFrames(fingerprintInput, cause);
             cause = cause.getCause();
             depth++;
         }
-        return sha256(sb.toString());
+        return sha256(fingerprintInput.toString());
     }
 
     private static void appendExceptionFrames(StringBuilder sb, Throwable throwable) {
@@ -75,11 +75,11 @@ public class DefaultExceptionFingerprinter implements ExceptionFingerprinter {
 
     private static String sha256(String input) {
         try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+            var digest = MessageDigest.getInstance("SHA-256");
+            var hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
             return HexFormat.of().formatHex(hash);
-        } catch (NoSuchAlgorithmException e) {
-            throw new AssertionError("SHA-256 must be available", e);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new AssertionError("SHA-256 must be available", exception);
         }
     }
 }

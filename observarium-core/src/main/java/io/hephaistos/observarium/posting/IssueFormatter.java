@@ -49,11 +49,11 @@ public final class IssueFormatter {
         if (lastDot >= 0) {
             shortClass = shortClass.substring(lastDot + 1);
         }
-        String msg = event.message();
-        if (msg != null && msg.length() > 80) {
-            msg = msg.substring(0, 77) + "...";
+        var message = event.message();
+        if (message != null && message.length() > 80) {
+            message = message.substring(0, 77) + "...";
         }
-        return "[Observarium] " + shortClass + ": " + (msg != null ? msg : "(no message)");
+        return "[Observarium] " + shortClass + ": " + (message != null ? message : "(no message)");
     }
 
     /**
@@ -68,34 +68,34 @@ public final class IssueFormatter {
      * @return a non-null markdown string ready to be submitted as an issue body
      */
     public static String markdownBody(ExceptionEvent event) {
-        var sb = new StringBuilder();
-        sb.append(fingerprintMarker(event.fingerprint())).append("\n\n");
-        sb.append("## Exception\n\n");
-        sb.append("**Type:** `").append(event.exceptionClass()).append("`\n\n");
-        sb.append("**Message:** ").append(event.message() != null ? event.message() : "N/A").append("\n\n");
-        sb.append("**Severity:** ").append(event.severity()).append("\n\n");
-        sb.append("**Timestamp:** ").append(event.timestamp()).append("\n\n");
-        sb.append("**Thread:** ").append(event.threadName()).append("\n\n");
+        var body = new StringBuilder();
+        body.append(fingerprintMarker(event.fingerprint())).append("\n\n");
+        body.append("## Exception\n\n");
+        body.append("**Type:** `").append(event.exceptionClass()).append("`\n\n");
+        body.append("**Message:** ").append(event.message() != null ? event.message() : "N/A").append("\n\n");
+        body.append("**Severity:** ").append(event.severity()).append("\n\n");
+        body.append("**Timestamp:** ").append(event.timestamp()).append("\n\n");
+        body.append("**Thread:** ").append(event.threadName()).append("\n\n");
 
         if (event.traceId() != null) {
-            sb.append("**Trace ID:** `").append(event.traceId()).append("`\n\n");
+            body.append("**Trace ID:** `").append(event.traceId()).append("`\n\n");
         }
         if (event.spanId() != null) {
-            sb.append("**Span ID:** `").append(event.spanId()).append("`\n\n");
+            body.append("**Span ID:** `").append(event.spanId()).append("`\n\n");
         }
 
         if (!event.tags().isEmpty()) {
-            sb.append("## Tags\n\n");
-            event.tags().forEach((k, v) -> sb.append("- **").append(k).append(":** ").append(v).append("\n"));
-            sb.append("\n");
+            body.append("## Tags\n\n");
+            event.tags().forEach((key, value) -> body.append("- **").append(key).append(":** ").append(value).append("\n"));
+            body.append("\n");
         }
 
-        sb.append("## Stack Trace\n\n```\n");
-        sb.append(event.rawStackTrace());
-        sb.append("\n```\n\n");
+        body.append("## Stack Trace\n\n```\n");
+        body.append(event.rawStackTrace());
+        body.append("\n```\n\n");
 
-        sb.append("**Fingerprint:** `").append(event.fingerprint()).append("`\n");
-        return sb.toString();
+        body.append("**Fingerprint:** `").append(event.fingerprint()).append("`\n");
+        return body.toString();
     }
 
     /**
@@ -110,17 +110,17 @@ public final class IssueFormatter {
      * @return a non-null markdown string ready to be submitted as a tracker comment
      */
     public static String markdownComment(ExceptionEvent event) {
-        var sb = new StringBuilder();
-        sb.append("## Occurred Again\n\n");
-        sb.append("**Timestamp:** ").append(event.timestamp()).append("\n\n");
-        sb.append("**Thread:** ").append(event.threadName()).append("\n\n");
+        var comment = new StringBuilder();
+        comment.append("## Occurred Again\n\n");
+        comment.append("**Timestamp:** ").append(event.timestamp()).append("\n\n");
+        comment.append("**Thread:** ").append(event.threadName()).append("\n\n");
         if (event.traceId() != null) {
-            sb.append("**Trace ID:** `").append(event.traceId()).append("`\n\n");
+            comment.append("**Trace ID:** `").append(event.traceId()).append("`\n\n");
         }
         if (!event.tags().isEmpty()) {
-            sb.append("**Tags:** ").append(event.tags()).append("\n\n");
+            comment.append("**Tags:** ").append(event.tags()).append("\n\n");
         }
-        sb.append("**Severity:** ").append(event.severity()).append("\n");
-        return sb.toString();
+        comment.append("**Severity:** ").append(event.severity()).append("\n");
+        return comment.toString();
     }
 }

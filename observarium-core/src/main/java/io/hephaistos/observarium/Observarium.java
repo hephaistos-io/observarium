@@ -77,7 +77,7 @@ public final class Observarium {
                     log.warn("Observarium executor did not terminate in time, forcing shutdown");
                     executor.shutdownNow();
                 }
-            } catch (InterruptedException e) {
+            } catch (InterruptedException exception) {
                 executor.shutdownNow();
                 Thread.currentThread().interrupt();
             }
@@ -368,12 +368,12 @@ public final class Observarium {
             var executor = new ThreadPoolExecutor(
                 1, 1, 0L, TimeUnit.MILLISECONDS,
                 new ArrayBlockingQueue<>(queueCapacity),
-                r -> {
-                    Thread t = new Thread(r, "observarium-worker");
-                    t.setDaemon(true);
-                    return t;
+                runnable -> {
+                    var thread = new Thread(runnable, "observarium-worker");
+                    thread.setDaemon(true);
+                    return thread;
                 },
-                (r, e) -> log.warn("Observarium queue full, dropping exception report"));
+                (rejectedTask, rejectedExecutor) -> log.warn("Observarium queue full, dropping exception report"));
 
             return new Observarium(processor, traceProvider, config, executor);
         }
