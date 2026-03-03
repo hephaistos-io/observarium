@@ -12,4 +12,8 @@ dependencies {
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test:3.4.3'
     testImplementation 'ch.qos.logback:logback-classic:1.5.16'
+    testImplementation project(':observarium-github')
+    testImplementation project(':observarium-jira')
+    testImplementation project(':observarium-gitlab')
+    testImplementation project(':observarium-email')
 }

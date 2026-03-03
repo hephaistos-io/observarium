@@ -1,5 +1,6 @@
 subprojects {
     apply plugin: 'java-library'
+    apply plugin: 'jacoco'
 
     group = 'io.hephaistos'
     version = '0.1.0-SNAPSHOT'
@@ -22,5 +23,31 @@ subprojects {
 
     test {
         useJUnitPlatform()
+        finalizedBy jacocoTestReport
+    }
+
+    jacocoTestReport {
+        dependsOn test
+        reports {
+            xml.required = true
+            html.required = true
+        }
+    }
+
+    jacocoTestCoverageVerification {
+        dependsOn test
+        violationRules {
+            rule {
+                limit {
+                    minimum = 0.80
+                }
+            }
+        }
+    }
+
+    // Wire coverage verification into check, except for modules that lack
+    // a test framework capable of exercising them (e.g. Quarkus CDI).
+    if (project.name != 'observarium-quarkus') {
+        check.dependsOn jacocoTestCoverageVerification
     }
 }
