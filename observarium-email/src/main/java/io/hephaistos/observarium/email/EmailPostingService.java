@@ -82,7 +82,7 @@ public class EmailPostingService implements PostingService {
             log.info("Exception notification email sent for fingerprint {}", event.fingerprint());
             return PostingResult.success(null, null);
 
-        } catch (MessagingException e) {
+        } catch (Exception e) {
             log.error("Failed to send exception notification email", e);
             return PostingResult.failure("Failed to send email: " + e.getMessage());
         }
@@ -108,6 +108,7 @@ public class EmailPostingService implements PostingService {
 
         if (config.startTls()) {
             props.put("mail.smtp.starttls.enable", "true");
+            props.put("mail.smtp.starttls.required", "true");
         }
 
         return Session.getInstance(props, new jakarta.mail.Authenticator() {
