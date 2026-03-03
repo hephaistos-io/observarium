@@ -17,6 +17,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.Base64;
 
 /**
@@ -35,13 +36,16 @@ public class JiraPostingService implements PostingService {
 
     /** Number of fingerprint characters used in the Jira label. */
     private static final int FINGERPRINT_PREFIX_LENGTH = 12;
+    private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
 
     private final JiraConfig config;
     private final HttpClient httpClient;
     private final Gson gson;
 
     public JiraPostingService(JiraConfig config) {
-        this(config, HttpClient.newHttpClient(), new Gson());
+        this(config, HttpClient.newBuilder()
+                .connectTimeout(REQUEST_TIMEOUT)
+                .build(), new Gson());
     }
 
     /**
@@ -66,13 +70,13 @@ public class JiraPostingService implements PostingService {
      * Searches for an open Jira issue whose labels include the fingerprint-derived marker.
      *
      * <p>Uses the JQL:
-     * {@code project = {projectKey} AND labels = "observarium-{hash12}" AND status != Done}
+     * {@code project = {projectKey} AND labels = "observarium-{hash12}" AND statusCategory != Done}
      */
     @Override
     public DuplicateSearchResult findDuplicate(ExceptionEvent event) {
         String label = fingerprintLabel(event.fingerprint());
         String jql = String.format(
-            "project = \"%s\" AND labels = \"%s\" AND status != Done",
+            "project = \"%s\" AND labels = \"%s\" AND statusCategory != Done",
             config.projectKey(), label
         );
 
@@ -298,6 +302,7 @@ public class JiraPostingService implements PostingService {
     private HttpResponse<String> post(String url, String jsonBody) throws Exception {
         HttpRequest request = HttpRequest.newBuilder()
             .uri(URI.create(url))
+            .timeout(REQUEST_TIMEOUT)
             .header("Authorization", basicAuthHeader())
             .header("Content-Type", "application/json")
             .header("Accept", "application/json")
