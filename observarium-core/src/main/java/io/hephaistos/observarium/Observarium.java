@@ -30,12 +30,14 @@ public final class Observarium {
     private static final int DEFAULT_QUEUE_CAPACITY = 256;
 
     private final ExceptionProcessor processor;
+    private final TraceContextProvider traceProvider;
     private final ObservariumConfig config;
     private final ExecutorService executor;
 
-    private Observarium(ExceptionProcessor processor, ObservariumConfig config,
-                         ExecutorService executor) {
+    private Observarium(ExceptionProcessor processor, TraceContextProvider traceProvider,
+                         ObservariumConfig config, ExecutorService executor) {
         this.processor = processor;
+        this.traceProvider = traceProvider;
         this.config = config;
         this.executor = executor;
 
@@ -65,8 +67,16 @@ public final class Observarium {
     public CompletableFuture<List<PostingResult>> captureException(Throwable throwable,
                                                                      Severity severity,
                                                                      Map<String, String> tags) {
+        // Eagerly capture thread-local context on the caller's thread before
+        // handing off to the async worker where MDC and thread name would differ.
+        String callerThreadName = Thread.currentThread().getName();
+        String traceId = traceProvider.getTraceId();
+        String spanId = traceProvider.getSpanId();
+
         return CompletableFuture.supplyAsync(
-            () -> processor.process(throwable, severity, tags), executor)
+            () -> processor.process(throwable, severity, tags,
+                    callerThreadName, traceId, spanId),
+            executor)
             .exceptionally(ex -> {
                 log.error("Failed to process exception", ex);
                 return List.of(PostingResult.failure("Processing failed: " + ex.getMessage()));
@@ -86,7 +96,6 @@ public final class Observarium {
     }
 
     public static final class Builder {
-        private String apiKey;
         private ScrubLevel scrubLevel = ScrubLevel.BASIC;
         private final List<Pattern> additionalScrubPatterns = new ArrayList<>();
         private ExceptionFingerprinter fingerprinter;
@@ -94,11 +103,6 @@ public final class Observarium {
         private TraceContextProvider traceProvider;
         private final List<PostingService> postingServices = new ArrayList<>();
         private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
-
-        public Builder apiKey(String apiKey) {
-            this.apiKey = apiKey;
-            return this;
-        }
 
         public Builder scrubLevel(ScrubLevel level) {
             this.scrubLevel = level;
@@ -152,9 +156,13 @@ public final class Observarium {
                 traceProvider = new MdcTraceContextProvider();
             }
 
-            var config = new ObservariumConfig(apiKey, scrubLevel, postingServices.size());
+            if (postingServices.isEmpty()) {
+                log.warn("No PostingService configured — captured exceptions will be silently ignored");
+            }
+
+            var config = new ObservariumConfig(scrubLevel, postingServices.size());
             var processor = new ExceptionProcessor(
-                fingerprinter, scrubber, traceProvider, postingServices);
+                fingerprinter, scrubber, postingServices);
 
             var executor = new ThreadPoolExecutor(
                 1, 1, 0L, TimeUnit.MILLISECONDS,
@@ -166,7 +174,7 @@ public final class Observarium {
                 },
                 (r, e) -> log.warn("Observarium queue full, dropping exception report"));
 
-            return new Observarium(processor, config, executor);
+            return new Observarium(processor, traceProvider, config, executor);
         }
     }
 }

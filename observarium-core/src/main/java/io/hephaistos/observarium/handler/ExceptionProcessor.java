@@ -7,7 +7,6 @@ import io.hephaistos.observarium.posting.DuplicateSearchResult;
 import io.hephaistos.observarium.posting.PostingResult;
 import io.hephaistos.observarium.posting.PostingService;
 import io.hephaistos.observarium.scrub.DataScrubber;
-import io.hephaistos.observarium.trace.TraceContextProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -24,23 +23,30 @@ public class ExceptionProcessor {
 
     private final ExceptionFingerprinter fingerprinter;
     private final DataScrubber scrubber;
-    private final TraceContextProvider traceProvider;
     private final List<PostingService> postingServices;
 
     public ExceptionProcessor(
             ExceptionFingerprinter fingerprinter,
             DataScrubber scrubber,
-            TraceContextProvider traceProvider,
             List<PostingService> postingServices) {
         this.fingerprinter = fingerprinter;
         this.scrubber = scrubber;
-        this.traceProvider = traceProvider;
         this.postingServices = List.copyOf(postingServices);
     }
 
+    /**
+     * Processes the exception, posting it to all configured services.
+     *
+     * @param callerThreadName the thread name captured on the caller's thread (not the worker)
+     * @param traceId          the trace ID captured on the caller's thread (MDC is thread-local)
+     * @param spanId           the span ID captured on the caller's thread (MDC is thread-local)
+     */
     public List<PostingResult> process(Throwable throwable, Severity severity,
-                                        Map<String, String> tags) {
-        ExceptionEvent event = buildEvent(throwable, severity, tags);
+                                        Map<String, String> tags,
+                                        String callerThreadName,
+                                        String traceId, String spanId) {
+        ExceptionEvent event = buildEvent(throwable, severity, tags,
+                callerThreadName, traceId, spanId);
         List<PostingResult> results = new ArrayList<>();
 
         for (PostingService service : postingServices) {
@@ -64,7 +70,9 @@ public class ExceptionProcessor {
     }
 
     private ExceptionEvent buildEvent(Throwable throwable, Severity severity,
-                                       Map<String, String> tags) {
+                                       Map<String, String> tags,
+                                       String callerThreadName,
+                                       String traceId, String spanId) {
         String fingerprint = fingerprinter.fingerprint(throwable);
         String message = scrubber.scrub(throwable.getMessage());
         String rawTrace = scrubber.scrub(getFullStackTrace(throwable));
@@ -81,9 +89,9 @@ public class ExceptionProcessor {
             .rawStackTrace(rawTrace)
             .severity(severity)
             .timestamp(Instant.now())
-            .threadName(Thread.currentThread().getName())
-            .traceId(traceProvider.getTraceId())
-            .spanId(traceProvider.getSpanId())
+            .threadName(callerThreadName)
+            .traceId(traceId)
+            .spanId(spanId)
             .tags(tags != null ? tags : Map.of())
             .extra(Map.of(
                 "java.version", System.getProperty("java.version", "unknown"),

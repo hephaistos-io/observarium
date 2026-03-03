@@ -10,7 +10,7 @@ public class DefaultDataScrubber implements DataScrubber {
     private static final List<PatternLevel> PATTERNS = List.of(
         new PatternLevel(ScrubLevel.BASIC,
             Pattern.compile("(?i)(password|passwd|pwd|secret|token|api_key|apikey|" +
-                "authorization|auth_token|access_token|private_key)\\s*[:=]\\s*\\S+")),
+                "authorization|auth_token|access_token|private_key)\\s*[:=]\\s*\\S{1,200}")),
         new PatternLevel(ScrubLevel.BASIC,
             Pattern.compile("(?i)Bearer\\s+[A-Za-z0-9\\-._~+/]+=*")),
         new PatternLevel(ScrubLevel.STRICT,
