@@ -1,0 +1,15 @@
+dependencies {
+    api project(':observarium-core')
+    implementation 'org.springframework.boot:spring-boot-autoconfigure:3.4.3'
+    compileOnly 'org.springframework:spring-web:6.2.3'
+    compileOnly 'org.springframework:spring-webmvc:6.2.3'
+    compileOnly 'jakarta.servlet:jakarta.servlet-api:6.1.0'
+
+    compileOnly project(':observarium-github')
+    compileOnly project(':observarium-jira')
+    compileOnly project(':observarium-gitlab')
+    compileOnly project(':observarium-email')
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test:3.4.3'
+    testImplementation 'ch.qos.logback:logback-classic:1.5.16'
+}

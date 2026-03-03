@@ -1,0 +1,12 @@
+dependencies {
+    api project(':observarium-core')
+    implementation 'io.quarkus:quarkus-arc:3.17.8'
+    compileOnly 'jakarta.ws.rs:jakarta.ws.rs-api:4.0.0'
+
+    compileOnly project(':observarium-github')
+    compileOnly project(':observarium-jira')
+    compileOnly project(':observarium-gitlab')
+    compileOnly project(':observarium-email')
+
+    testImplementation 'ch.qos.logback:logback-classic:1.5.16'
+}

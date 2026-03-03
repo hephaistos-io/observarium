@@ -1,0 +1,5 @@
+io.hephaistos.observarium.spring.ObservariumAutoConfiguration
+io.hephaistos.observarium.spring.GitHubAutoConfiguration
+io.hephaistos.observarium.spring.JiraAutoConfiguration
+io.hephaistos.observarium.spring.GitLabAutoConfiguration
+io.hephaistos.observarium.spring.EmailAutoConfiguration
