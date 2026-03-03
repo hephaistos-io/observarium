@@ -18,8 +18,8 @@ Observarium is an open-source exception tracking library for Java 21 that captur
 
 ```java
 // 1. Add dependency (Gradle)
-// implementation 'io.hephaistos:observarium-core:0.1.0-SNAPSHOT'
-// implementation 'io.hephaistos:observarium-github:0.1.0-SNAPSHOT'
+// implementation 'io.hephaistos:observarium-core:0.9.0'
+// implementation 'io.hephaistos:observarium-github:0.9.0'
 
 import io.hephaistos.observarium.Observarium;
 import io.hephaistos.observarium.handler.ObservariumExceptionHandler;
@@ -46,12 +46,12 @@ obs.captureException(exception, Severity.ERROR, Map.of("user.id", "u-42"));
 <dependency>
   <groupId>io.hephaistos</groupId>
   <artifactId>observarium-spring-boot</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>0.9.0</version>
 </dependency>
 <dependency>
   <groupId>io.hephaistos</groupId>
   <artifactId>observarium-github</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>0.9.0</version>
 </dependency>
 ```
 
@@ -72,12 +72,12 @@ observarium:
 <dependency>
   <groupId>io.hephaistos</groupId>
   <artifactId>observarium-quarkus</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>0.9.0</version>
 </dependency>
 <dependency>
   <groupId>io.hephaistos</groupId>
   <artifactId>observarium-github</artifactId>
-  <version>0.1.0-SNAPSHOT</version>
+  <version>0.9.0</version>
 </dependency>
 ```
 

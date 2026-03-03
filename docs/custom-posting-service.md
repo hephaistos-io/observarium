@@ -53,6 +53,8 @@ public interface PostingService {
 | `traceId()` | `String` | OpenTelemetry trace ID from MDC, may be `null`. |
 | `spanId()` | `String` | OpenTelemetry span ID from MDC, may be `null`. |
 | `tags()` | `Map<String, String>` | Caller-supplied key-value tags. |
+| `stackTrace()` | `List<String>` | Structured list of individual stack frame strings. |
+| `extra()` | `Map<String, String>` | System-collected metadata added automatically by the pipeline. |
 
 **`PostingResult`** — return value for `createIssue` and `commentOnIssue`:
 
@@ -73,7 +75,7 @@ DuplicateSearchResult.found("ISSUE-42", "https://example.com/issues/42"); // dup
 
 ### Deduplication strategy recommendations
 
-- **Embed the fingerprint as metadata** — write `event.fingerprint()` into a field, label, tag, or HTML comment that you can query later. `DefaultIssueFormatter.fingerprintMarker()` produces `<!-- observarium:fingerprint:<sha256> -->` for Markdown bodies, or implement `IssueFormatter` with your own marker format.
+- **Embed the fingerprint as metadata** — write `event.fingerprint()` into a field, label, tag, or HTML comment that you can query later. The default `IssueFormatter` implementation produces `<!-- observarium:fingerprint:<sha256> -->` via `fingerprintMarker(fingerprint)` for Markdown bodies. You can implement the `IssueFormatter` interface with your own marker format.
 - **Search only open/active issues** — if a duplicate issue was closed or resolved, creating a fresh issue is usually the right behaviour.
 - **Fail safe to `notFound()`** — if the search API returns an error, return `DuplicateSearchResult.notFound()` so a new issue is created rather than swallowing the event.
 - **No dedup? Return `notFound()` always** — backends like email cannot search previous messages; returning `notFound()` unconditionally is correct for them.
@@ -157,22 +159,22 @@ public class SlackWebhookPostingService implements PostingService {
         int dot = exClass.lastIndexOf('.');
         String shortClass = dot >= 0 ? exClass.substring(dot + 1) : exClass;
 
-        StringBuilder sb = new StringBuilder();
-        sb.append(":rotating_light: *").append(event.severity()).append("* — `")
-          .append(shortClass).append("`");
+        var builder = new StringBuilder();
+        builder.append(":rotating_light: *").append(event.severity()).append("* — `")
+               .append(shortClass).append("`");
         if (event.message() != null) {
-            sb.append(": ").append(event.message());
+            builder.append(": ").append(event.message());
         }
-        sb.append("\n*Thread:* ").append(event.threadName());
-        sb.append("  *At:* ").append(event.timestamp());
+        builder.append("\n*Thread:* ").append(event.threadName());
+        builder.append("  *At:* ").append(event.timestamp());
         if (event.traceId() != null) {
-            sb.append("\n*Trace:* `").append(event.traceId()).append("`");
+            builder.append("\n*Trace:* `").append(event.traceId()).append("`");
         }
         if (!event.tags().isEmpty()) {
-            sb.append("\n*Tags:* ").append(event.tags());
+            builder.append("\n*Tags:* ").append(event.tags());
         }
-        sb.append("\n*Fingerprint:* `").append(event.fingerprint()).append("`");
-        return sb.toString();
+        builder.append("\n*Fingerprint:* `").append(event.fingerprint()).append("`");
+        return builder.toString();
     }
 
     private static String jsonString(String value) {

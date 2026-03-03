@@ -18,9 +18,9 @@ This approach works in any Java application: command-line tools, servlet contain
 
 ```groovy
 dependencies {
-    implementation 'io.hephaistos:observarium-core:0.1.0-SNAPSHOT'
+    implementation 'io.hephaistos:observarium-core:0.9.0'
     // pick one or more posting service backends
-    implementation 'io.hephaistos:observarium-github:0.1.0-SNAPSHOT'
+    implementation 'io.hephaistos:observarium-github:0.9.0'
 }
 ```
 
@@ -31,12 +31,12 @@ dependencies {
   <dependency>
     <groupId>io.hephaistos</groupId>
     <artifactId>observarium-core</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.9.0</version>
   </dependency>
   <dependency>
     <groupId>io.hephaistos</groupId>
     <artifactId>observarium-github</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.9.0</version>
   </dependency>
 </dependencies>
 ```
@@ -112,12 +112,12 @@ The `observarium-spring-boot` module provides auto-configuration. Drop it on the
   <dependency>
     <groupId>io.hephaistos</groupId>
     <artifactId>observarium-spring-boot</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.9.0</version>
   </dependency>
   <dependency>
     <groupId>io.hephaistos</groupId>
     <artifactId>observarium-github</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.9.0</version>
   </dependency>
 </dependencies>
 ```
@@ -126,8 +126,8 @@ The `observarium-spring-boot` module provides auto-configuration. Drop it on the
 
 ```groovy
 dependencies {
-    implementation 'io.hephaistos:observarium-spring-boot:0.1.0-SNAPSHOT'
-    implementation 'io.hephaistos:observarium-github:0.1.0-SNAPSHOT'
+    implementation 'io.hephaistos:observarium-spring-boot:0.9.0'
+    implementation 'io.hephaistos:observarium-github:0.9.0'
 }
 ```
 
@@ -188,12 +188,12 @@ The `observarium-quarkus` module provides a CDI extension. It mirrors the Spring
   <dependency>
     <groupId>io.hephaistos</groupId>
     <artifactId>observarium-quarkus</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.9.0</version>
   </dependency>
   <dependency>
     <groupId>io.hephaistos</groupId>
     <artifactId>observarium-github</artifactId>
-    <version>0.1.0-SNAPSHOT</version>
+    <version>0.9.0</version>
   </dependency>
 </dependencies>
 ```
@@ -202,8 +202,8 @@ The `observarium-quarkus` module provides a CDI extension. It mirrors the Spring
 
 ```groovy
 dependencies {
-    implementation 'io.hephaistos:observarium-quarkus:0.1.0-SNAPSHOT'
-    implementation 'io.hephaistos:observarium-github:0.1.0-SNAPSHOT'
+    implementation 'io.hephaistos:observarium-quarkus:0.9.0'
+    implementation 'io.hephaistos:observarium-github:0.9.0'
 }
 ```
 

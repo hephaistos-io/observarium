@@ -2,6 +2,23 @@
 
 Observarium dispatches each captured exception to every configured `PostingService`. The processor first calls `findDuplicate()` on the service; if a duplicate is found it calls `commentOnIssue()`, otherwise it calls `createIssue()`. Every call returns a `PostingResult` that carries a success flag, the external issue ID, and a URL.
 
+## Custom Issue Formatting
+
+Every posting service delegates title, body, and comment generation to an `IssueFormatter` interface. The built-in `DefaultIssueFormatter` ships a sensible Markdown format, but you can inject your own implementation via the two-argument constructor available on every posting service:
+
+```java
+IssueFormatter customFormatter = new MyCompanyFormatter();
+
+new GitHubPostingService(gitHubConfig, customFormatter);
+new JiraPostingService(jiraConfig, customFormatter);
+new GitLabPostingService(gitLabConfig, customFormatter);
+new EmailPostingService(emailConfig, customFormatter);
+```
+
+The single-argument constructors (config only) default to `DefaultIssueFormatter`. See [Custom Posting Service](custom-posting-service.md) for details on implementing `PostingService` from scratch.
+
+---
+
 ## Why not official SDKs?
 
 Every posting module uses the JDK built-in `java.net.http.HttpClient` and Gson rather than a platform-specific SDK. This is a deliberate design choice:
