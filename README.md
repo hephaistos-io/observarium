@@ -124,7 +124,7 @@ Full documentation is in the [`docs/`](docs/) directory:
 
 ## License
 
-Apache License 2.0. See [LICENSE](LICENSE).
+MIT License. See [LICENSE](LICENSE).
 
 ## Contributing
 
