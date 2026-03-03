@@ -1,0 +1,9 @@
+rootProject.name = 'observarium'
+
+include 'observarium-core'
+include 'observarium-spring-boot'
+include 'observarium-quarkus'
+include 'observarium-github'
+include 'observarium-jira'
+include 'observarium-gitlab'
+include 'observarium-email'
