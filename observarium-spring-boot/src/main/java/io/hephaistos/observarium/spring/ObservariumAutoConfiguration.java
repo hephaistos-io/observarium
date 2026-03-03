@@ -67,7 +67,6 @@ public class ObservariumAutoConfiguration {
             @Autowired(required = false) List<PostingService> postingServices) {
 
         var builder = Observarium.builder()
-                .apiKey(properties.getApiKey())
                 .scrubLevel(properties.getScrubLevel())
                 .fingerprinter(fingerprinter)
                 .scrubber(scrubber)
@@ -81,14 +80,17 @@ public class ObservariumAutoConfiguration {
     }
 
     /**
-     * Installs the Observarium handler as the JVM default uncaught exception handler,
-     * preserving any existing handler as a delegate.
+     * Creates and installs the Observarium handler as the JVM default uncaught exception
+     * handler, preserving any existing handler as a delegate.
      */
     @Bean
     @ConditionalOnMissingBean
     public ObservariumExceptionHandler observariumExceptionHandler(Observarium observarium) {
-        ObservariumExceptionHandler.install(observarium);
-        return new ObservariumExceptionHandler(observarium);
+        Thread.UncaughtExceptionHandler existing =
+            Thread.getDefaultUncaughtExceptionHandler();
+        var handler = new ObservariumExceptionHandler(observarium, existing);
+        Thread.setDefaultUncaughtExceptionHandler(handler);
+        return handler;
     }
 
     /**

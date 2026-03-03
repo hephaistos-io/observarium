@@ -91,15 +91,6 @@ class ObservariumAutoConfigurationTest {
     }
 
     @Test
-    void apiKeyIsPassedThroughFromProperties() {
-        runner.withPropertyValues("observarium.api-key=test-api-key-123")
-                .run(context -> {
-                    ObservariumProperties properties = context.getBean(ObservariumProperties.class);
-                    assertThat(properties.getApiKey()).isEqualTo("test-api-key-123");
-                });
-    }
-
-    @Test
     void githubIsDisabledByDefault() {
         runner.run(context -> {
             ObservariumProperties properties = context.getBean(ObservariumProperties.class);

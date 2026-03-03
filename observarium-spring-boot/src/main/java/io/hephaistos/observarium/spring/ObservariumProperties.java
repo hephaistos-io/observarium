@@ -13,7 +13,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class ObservariumProperties {
 
     private boolean enabled = true;
-    private String apiKey;
     private ScrubLevel scrubLevel = ScrubLevel.BASIC;
     private String traceIdMdcKey = "trace_id";
     private String spanIdMdcKey = "span_id";
@@ -29,14 +28,6 @@ public class ObservariumProperties {
 
     public void setEnabled(boolean enabled) {
         this.enabled = enabled;
-    }
-
-    public String getApiKey() {
-        return apiKey;
-    }
-
-    public void setApiKey(String apiKey) {
-        this.apiKey = apiKey;
     }
 
     public ScrubLevel getScrubLevel() {
