@@ -203,7 +203,7 @@ Multiple services can be registered and all receive every event:
 
 ```java
 Observarium obs = Observarium.builder()
-    .addPostingService(new GitHubPostingService("owner/repo", token))
+    .addPostingService(new GitHubPostingService(GitHubConfig.of(token, "owner", "repo")))
     .addPostingService(new SlackWebhookPostingService(webhookUrl))
     .build();
 ```

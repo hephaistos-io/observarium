@@ -27,7 +27,7 @@ import io.hephaistos.observarium.scrub.ScrubLevel;
 
 Observarium obs = Observarium.builder()
     .scrubLevel(ScrubLevel.STRICT)
-    .addPostingService(new GitHubPostingService("owner/repo", "ghp_yourtoken"))
+    .addPostingService(new GitHubPostingService(GitHubConfig.of("ghp_yourtoken", "owner", "repo")))
     .build();
 
 // Capture all uncaught exceptions automatically (reports as FATAL)
@@ -59,9 +59,9 @@ obs.captureException(exception, Severity.ERROR, Map.of("user.id", "u-42"));
 # application.yml
 observarium:
   scrub-level: STRICT
-  queue-capacity: 512
   github:
-    repository: owner/repo
+    owner: owner
+    repo: repo
     token: ${GITHUB_TOKEN}
 ```
 
@@ -84,8 +84,8 @@ observarium:
 ```properties
 # application.properties
 observarium.scrub-level=STRICT
-observarium.queue-capacity=512
-observarium.github.repository=owner/repo
+observarium.github.owner=owner
+observarium.github.repo=repo
 observarium.github.token=${GITHUB_TOKEN}
 ```
 
@@ -101,11 +101,13 @@ observarium.github.token=${GITHUB_TOKEN}
 | `observarium-gitlab` | GitLab Issues posting service |
 | `observarium-email` | SMTP email posting service |
 
+All posting modules use the JDK built-in `java.net.http.HttpClient` and Gson — no platform SDKs, no framework-level transitive dependencies. This is intentional: none of the platforms ship official Java SDKs, and the community alternatives (hub4j for GitHub, gitlab4j, everit-org for Jira) pull in heavy stacks like Jersey or Apache Commons for three API calls. See [Posting Services](docs/posting-services.md#why-not-official-sdks) for the full rationale.
+
 ## Posting Service Feature Matrix
 
 | Service | Create issue | Deduplication | Comment on duplicate |
 |---|---|---|---|
-| GitHub | Yes | Yes — fingerprint in HTML comment | Yes |
+| GitHub | Yes | Yes — label-based search | Yes |
 | Jira | Yes | Yes — JQL label search | Yes |
 | GitLab | Yes | Yes — label-based search | Yes |
 | Email | Yes | No | No |

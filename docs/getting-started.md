@@ -66,7 +66,8 @@ public class App {
             // The async dispatch queue size; default is 256
             .queueCapacity(512)
             // Register one or more posting services
-            .addPostingService(new GitHubPostingService("owner/repo", "ghp_yourtoken"))
+            .addPostingService(new GitHubPostingService(
+                GitHubConfig.of("ghp_yourtoken", "owner", "repo")))
             .build();
 
         // Install as the JVM-wide uncaught exception handler.
@@ -135,14 +136,13 @@ dependencies {
 ```yaml
 observarium:
   scrub-level: STRICT          # NONE | BASIC (default) | STRICT
-  queue-capacity: 512          # default: 256
-  install-uncaught-handler: true  # default: true
   github:
-    repository: owner/repo
+    owner: owner
+    repo: repo
     token: ${GITHUB_TOKEN}     # inject from environment variable
 ```
 
-The auto-configuration creates an `Observarium` bean and, when `install-uncaught-handler` is `true`, calls `ObservariumExceptionHandler.install()` at startup.
+The auto-configuration creates an `Observarium` bean.
 
 ### 3. Capture exceptions in your code
 
@@ -211,9 +211,8 @@ dependencies {
 
 ```properties
 observarium.scrub-level=STRICT
-observarium.queue-capacity=512
-observarium.install-uncaught-handler=true
-observarium.github.repository=owner/repo
+observarium.github.owner=owner
+observarium.github.repo=repo
 observarium.github.token=${GITHUB_TOKEN}
 ```
 

@@ -6,7 +6,9 @@ Observarium correlates exceptions with distributed traces by reading trace conte
 
 ## How It Works
 
-When `captureException()` is called, `ExceptionProcessor` calls `TraceContextProvider.getTraceId()` and `TraceContextProvider.getSpanId()` on the thread that submitted the exception. The default implementation, `MdcTraceContextProvider`, reads from SLF4J MDC using the keys `trace_id` and `span_id`.
+When `captureException()` is called, `Observarium` immediately reads trace context on the caller's thread by invoking `TraceContextProvider.getTraceId()` and `TraceContextProvider.getSpanId()` before the call returns. The captured string values are then stored in the `ExceptionEvent` and handed off to the background worker thread. The default implementation, `MdcTraceContextProvider`, reads from SLF4J MDC using the keys `trace_id` and `span_id`.
+
+This eager capture is necessary because SLF4J MDC is thread-local: by the time the background worker processes the event, the caller's MDC context is no longer visible. `ExceptionProcessor` receives the already-captured trace and span IDs as plain strings and never accesses MDC itself.
 
 If both values are `null`, the issue body simply omits the trace fields. If either value is present, `IssueFormatter.markdownBody()` includes them:
 
@@ -14,8 +16,6 @@ If both values are `null`, the issue body simply omits the trace fields. If eith
 **Trace ID:** `4bf92f3577b34da6a3ce929d0e0e4736`
 **Span ID:** `00f067aa0ba902b7`
 ```
-
-Because Observarium processes events on a single background worker thread, the MDC values are captured eagerly at submission time (on the caller's thread) and stored in the `ExceptionEvent`. The worker thread does not need access to the original MDC.
 
 ---
 

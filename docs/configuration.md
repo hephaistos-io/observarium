@@ -8,7 +8,6 @@ All configuration for a plain Java setup goes through the fluent builder returne
 
 | Method | Type | Default | Description |
 |---|---|---|---|
-| `apiKey(String)` | `String` | `null` | Reserved for future use. Some posting-service implementations may read this value from `ObservariumConfig` at runtime. |
 | `scrubLevel(ScrubLevel)` | `ScrubLevel` | `BASIC` | Controls which PII patterns are active. See [Scrub Levels](#scrub-levels) below. |
 | `addScrubPattern(Pattern)` | `java.util.regex.Pattern` | — | Adds a single compiled regex to the active set. Each match is replaced with `[REDACTED]`. Can be called multiple times. |
 | `fingerprinter(ExceptionFingerprinter)` | `ExceptionFingerprinter` | `DefaultExceptionFingerprinter` | Replaces the built-in fingerprinter. See [Custom Fingerprinter](#custom-fingerprinter). |
@@ -22,7 +21,8 @@ All configuration for a plain Java setup goes through the fluent builder returne
 
 ```java
 Observarium obs = Observarium.builder()
-    .addPostingService(new GitHubPostingService("owner/repo", "ghp_token"))
+    .addPostingService(new GitHubPostingService(
+        GitHubConfig.of("ghp_token", "owner", "repo")))
     .build();
 ```
 
@@ -35,39 +35,44 @@ All properties are under the `observarium` prefix. Use either `application.yml` 
 | Property | Type | Default | Description |
 |---|---|---|---|
 | `observarium.scrub-level` | `NONE \| BASIC \| STRICT` | `BASIC` | PII scrub level applied to messages and stack traces. |
-| `observarium.queue-capacity` | `int` | `256` | Bounded queue capacity for the async worker. |
-| `observarium.install-uncaught-handler` | `boolean` | `true` | When `true`, calls `ObservariumExceptionHandler.install()` on application startup, reporting uncaught exceptions as `FATAL`. |
-| `observarium.github.repository` | `String` | — | GitHub repository in `owner/repo` format. Enables the GitHub posting service when present. |
+| `observarium.github.enabled` | `boolean` | `false` | Enable the GitHub posting service. |
 | `observarium.github.token` | `String` | — | GitHub personal access token or fine-grained token. |
-| `observarium.jira.base-url` | `String` | — | Jira instance URL, e.g. `https://myorg.atlassian.net`. Enables the Jira posting service when present. |
-| `observarium.jira.project-key` | `String` | — | Jira project key, e.g. `OPS`. |
-| `observarium.jira.email` | `String` | — | Jira account email for Basic Auth. |
+| `observarium.github.owner` | `String` | — | GitHub repository owner (organization name or user login). |
+| `observarium.github.repo` | `String` | — | GitHub repository name. |
+| `observarium.github.label-prefix` | `String` | `observarium` | Label applied to all issues created by Observarium. |
+| `observarium.jira.enabled` | `boolean` | `false` | Enable the Jira posting service. |
+| `observarium.jira.base-url` | `String` | — | Jira instance URL, e.g. `https://myorg.atlassian.net`. |
+| `observarium.jira.username` | `String` | — | Jira account username (email address for Jira Cloud). |
 | `observarium.jira.api-token` | `String` | — | Jira API token. |
-| `observarium.gitlab.base-url` | `String` | — | GitLab instance URL, e.g. `https://gitlab.com`. Enables the GitLab posting service when present. |
+| `observarium.jira.project-key` | `String` | — | Jira project key, e.g. `OPS`. |
+| `observarium.jira.issue-type` | `String` | `Bug` | Jira issue type name for created issues. |
+| `observarium.gitlab.enabled` | `boolean` | `false` | Enable the GitLab posting service. |
+| `observarium.gitlab.base-url` | `String` | — | GitLab instance URL, e.g. `https://gitlab.com`. |
+| `observarium.gitlab.private-token` | `String` | — | GitLab personal access token or project access token. |
 | `observarium.gitlab.project-id` | `String` | — | GitLab numeric project ID or `namespace/project` path. |
-| `observarium.gitlab.token` | `String` | — | GitLab personal access token or project access token. |
-| `observarium.email.smtp-host` | `String` | — | SMTP server hostname. Enables the Email posting service when present. |
+| `observarium.email.enabled` | `boolean` | `false` | Enable the Email posting service. |
+| `observarium.email.smtp-host` | `String` | — | SMTP server hostname. |
 | `observarium.email.smtp-port` | `int` | `587` | SMTP server port. |
-| `observarium.email.username` | `String` | — | SMTP authentication username. |
-| `observarium.email.password` | `String` | — | SMTP authentication password. |
 | `observarium.email.from` | `String` | — | Sender address. |
 | `observarium.email.to` | `String` | — | Recipient address. |
+| `observarium.email.username` | `String` | — | SMTP authentication username. |
+| `observarium.email.password` | `String` | — | SMTP authentication password. |
+| `observarium.email.start-tls` | `boolean` | `true` | Enable STARTTLS. |
 
 **Example `application.yml`:**
 
 ```yaml
 observarium:
   scrub-level: STRICT
-  queue-capacity: 512
-  install-uncaught-handler: true
   github:
-    repository: acme/backend
+    owner: acme
+    repo: backend
     token: ${GITHUB_TOKEN}
   jira:
     base-url: https://acme.atlassian.net
-    project-key: OPS
-    email: ${JIRA_EMAIL}
+    username: ${JIRA_USERNAME}
     api-token: ${JIRA_TOKEN}
+    project-key: OPS
 ```
 
 ---
@@ -76,34 +81,14 @@ observarium:
 
 Identical keys to Spring Boot; use `application.properties` or `application.yaml`.
 
-| Property | Type | Default | Description |
-|---|---|---|---|
-| `observarium.scrub-level` | `NONE \| BASIC \| STRICT` | `BASIC` | PII scrub level. |
-| `observarium.queue-capacity` | `int` | `256` | Async queue capacity. |
-| `observarium.install-uncaught-handler` | `boolean` | `true` | Install global uncaught exception handler at startup. |
-| `observarium.github.repository` | `String` | — | `owner/repo`. Enables GitHub posting when present. |
-| `observarium.github.token` | `String` | — | GitHub token. |
-| `observarium.jira.base-url` | `String` | — | Jira base URL. Enables Jira posting when present. |
-| `observarium.jira.project-key` | `String` | — | Jira project key. |
-| `observarium.jira.email` | `String` | — | Jira account email. |
-| `observarium.jira.api-token` | `String` | — | Jira API token. |
-| `observarium.gitlab.base-url` | `String` | — | GitLab base URL. Enables GitLab posting when present. |
-| `observarium.gitlab.project-id` | `String` | — | GitLab project ID or path. |
-| `observarium.gitlab.token` | `String` | — | GitLab token. |
-| `observarium.email.smtp-host` | `String` | — | SMTP host. Enables Email posting when present. |
-| `observarium.email.smtp-port` | `int` | `587` | SMTP port. |
-| `observarium.email.username` | `String` | — | SMTP username. |
-| `observarium.email.password` | `String` | — | SMTP password. |
-| `observarium.email.from` | `String` | — | Sender address. |
-| `observarium.email.to` | `String` | — | Recipient address. |
+The Quarkus module uses the same property names as the Spring Boot module. Refer to the Spring Boot table above for the complete list.
 
 **Example `application.properties`:**
 
 ```properties
 observarium.scrub-level=STRICT
-observarium.queue-capacity=512
-observarium.install-uncaught-handler=true
-observarium.github.repository=acme/backend
+observarium.github.owner=acme
+observarium.github.repo=backend
 observarium.github.token=${GITHUB_TOKEN}
 ```
 
