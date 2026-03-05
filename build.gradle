@@ -1,6 +1,15 @@
+import com.vanniktech.maven.publish.JavaLibrary
+import com.vanniktech.maven.publish.JavadocJar
+import com.vanniktech.maven.publish.SourcesJar
+
+plugins {
+    id 'com.vanniktech.maven.publish' version '0.36.0' apply false
+}
+
 subprojects {
     apply plugin: 'java-library'
     apply plugin: 'jacoco'
+    apply plugin: 'com.vanniktech.maven.publish'
 
     group = 'io.hephaistos'
     version = '0.9.0'
@@ -49,5 +58,39 @@ subprojects {
     // a test framework capable of exercising them (e.g. Quarkus CDI).
     if (project.name != 'observarium-quarkus') {
         check.dependsOn jacocoTestCoverageVerification
+    }
+
+    mavenPublishing {
+        publishToMavenCentral()
+        signAllPublications()
+
+        configure(new JavaLibrary(new JavadocJar.Javadoc(), new SourcesJar.Sources()))
+        coordinates(project.group.toString(), project.name, project.version.toString())
+
+        pom {
+            name = project.name
+            description = "Observarium ${project.name} - Zero-infrastructure exception tracking for Java"
+            inceptionYear = '2026'
+            url = 'https://github.com/hephaistos-io/observarium'
+            licenses {
+                license {
+                    name = 'MIT License'
+                    url = 'https://opensource.org/licenses/MIT'
+                    distribution = 'repo'
+                }
+            }
+            developers {
+                developer {
+                    id = 'hephaistos-io'
+                    name = 'hephaistos.io'
+                    url = 'https://github.com/hephaistos-io'
+                }
+            }
+            scm {
+                url = 'https://github.com/hephaistos-io/observarium'
+                connection = 'scm:git:git://github.com/hephaistos-io/observarium.git'
+                developerConnection = 'scm:git:ssh://git@github.com/hephaistos-io/observarium.git'
+            }
+        }
     }
 }
