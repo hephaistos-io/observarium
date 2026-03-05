@@ -9,22 +9,22 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
 
 /**
  * Auto-configuration for the GitHub {@link PostingService}.
  *
  * <p>Activated only when:
+ *
  * <ol>
- *   <li>The {@code observarium-github} module is on the runtime classpath
- *       ({@code GitHubPostingService} class is present), and</li>
- *   <li>{@code observarium.github.enabled=true} is set in application properties.</li>
+ *   <li>The {@code observarium-github} module is on the runtime classpath ({@code
+ *       GitHubPostingService} class is present), and
+ *   <li>{@code observarium.github.enabled=true} is set in application properties.
  * </ol>
  *
- * <p>The {@link ConditionalOnClass} guard prevents this configuration class from being loaded
- * when the GitHub module jar is absent, even though it references GitHub classes directly.
- * This works because Spring's condition evaluation happens before class loading of the
- * {@link Bean} method bodies.
+ * <p>The {@link ConditionalOnClass} guard prevents this configuration class from being loaded when
+ * the GitHub module jar is absent, even though it references GitHub classes directly. This works
+ * because Spring's condition evaluation happens before class loading of the {@link Bean} method
+ * bodies.
  */
 @AutoConfiguration
 @ConditionalOnClass(name = "io.hephaistos.observarium.github.GitHubPostingService")
@@ -32,16 +32,13 @@ import org.springframework.context.annotation.Configuration;
 @EnableConfigurationProperties(ObservariumProperties.class)
 public class GitHubAutoConfiguration {
 
-    @Bean
-    @ConditionalOnMissingBean(name = "gitHubPostingService")
-    public PostingService gitHubPostingService(ObservariumProperties properties) {
-        ObservariumProperties.GitHub github = properties.getGithub();
-        GitHubConfig config = new GitHubConfig(
-                github.getToken(),
-                github.getOwner(),
-                github.getRepo(),
-                github.getLabelPrefix()
-        );
-        return new GitHubPostingService(config);
-    }
+  @Bean
+  @ConditionalOnMissingBean(name = "gitHubPostingService")
+  public PostingService gitHubPostingService(ObservariumProperties properties) {
+    ObservariumProperties.GitHub github = properties.getGithub();
+    GitHubConfig config =
+        new GitHubConfig(
+            github.getToken(), github.getOwner(), github.getRepo(), github.getLabelPrefix());
+    return new GitHubPostingService(config);
+  }
 }

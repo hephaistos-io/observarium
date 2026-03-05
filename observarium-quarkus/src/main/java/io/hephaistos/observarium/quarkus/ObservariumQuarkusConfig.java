@@ -2,99 +2,98 @@ package io.hephaistos.observarium.quarkus;
 
 import io.smallrye.config.ConfigMapping;
 import io.smallrye.config.WithDefault;
-
 import java.util.Optional;
 
 /**
- * Quarkus-style configuration mapping for Observarium, bound from the {@code observarium.*}
- * config namespace via SmallRye Config.
+ * Quarkus-style configuration mapping for Observarium, bound from the {@code observarium.*} config
+ * namespace via SmallRye Config.
  *
- * <p>All methods return configuration values directly; nested sections are modeled as
- * inner interfaces. Optional sub-configurations (e.g. posting service credentials) use
- * {@link Optional} to allow the config sub-tree to be absent.
+ * <p>All methods return configuration values directly; nested sections are modeled as inner
+ * interfaces. Optional sub-configurations (e.g. posting service credentials) use {@link Optional}
+ * to allow the config sub-tree to be absent.
  */
 @ConfigMapping(prefix = "observarium")
 public interface ObservariumQuarkusConfig {
 
-    @WithDefault("true")
+  @WithDefault("true")
+  boolean enabled();
+
+  @WithDefault("BASIC")
+  String scrubLevel();
+
+  @WithDefault("trace_id")
+  String traceIdMdcKey();
+
+  @WithDefault("span_id")
+  String spanIdMdcKey();
+
+  Optional<GitHub> github();
+
+  Optional<Jira> jira();
+
+  Optional<GitLab> gitlab();
+
+  Optional<Email> email();
+
+  interface GitHub {
+    @WithDefault("false")
     boolean enabled();
 
-    @WithDefault("BASIC")
-    String scrubLevel();
+    Optional<String> token();
 
-    @WithDefault("trace_id")
-    String traceIdMdcKey();
+    Optional<String> owner();
 
-    @WithDefault("span_id")
-    String spanIdMdcKey();
+    Optional<String> repo();
 
-    Optional<GitHub> github();
+    @WithDefault("observarium")
+    String labelPrefix();
+  }
 
-    Optional<Jira> jira();
+  interface Jira {
+    @WithDefault("false")
+    boolean enabled();
 
-    Optional<GitLab> gitlab();
+    Optional<String> baseUrl();
 
-    Optional<Email> email();
+    Optional<String> username();
 
-    interface GitHub {
-        @WithDefault("false")
-        boolean enabled();
+    Optional<String> apiToken();
 
-        Optional<String> token();
+    Optional<String> projectKey();
 
-        Optional<String> owner();
+    @WithDefault("Bug")
+    String issueType();
+  }
 
-        Optional<String> repo();
+  interface GitLab {
+    @WithDefault("false")
+    boolean enabled();
 
-        @WithDefault("observarium")
-        String labelPrefix();
-    }
+    Optional<String> baseUrl();
 
-    interface Jira {
-        @WithDefault("false")
-        boolean enabled();
+    Optional<String> privateToken();
 
-        Optional<String> baseUrl();
+    Optional<String> projectId();
+  }
 
-        Optional<String> username();
+  interface Email {
+    @WithDefault("false")
+    boolean enabled();
 
-        Optional<String> apiToken();
+    Optional<String> smtpHost();
 
-        Optional<String> projectKey();
+    @WithDefault("587")
+    int smtpPort();
 
-        @WithDefault("Bug")
-        String issueType();
-    }
+    Optional<String> from();
 
-    interface GitLab {
-        @WithDefault("false")
-        boolean enabled();
+    Optional<String> to();
 
-        Optional<String> baseUrl();
+    Optional<String> username();
 
-        Optional<String> privateToken();
+    Optional<String> password();
 
-        Optional<String> projectId();
-    }
-
-    interface Email {
-        @WithDefault("false")
-        boolean enabled();
-
-        Optional<String> smtpHost();
-
-        @WithDefault("587")
-        int smtpPort();
-
-        Optional<String> from();
-
-        Optional<String> to();
-
-        Optional<String> username();
-
-        Optional<String> password();
-
-        @WithDefault("true")
-        boolean startTls();
-    }
+    @WithDefault("true")
+    boolean startTls();
+  }
 }

@@ -14,10 +14,11 @@ import org.springframework.context.annotation.Bean;
  * Auto-configuration for the email {@link PostingService}.
  *
  * <p>Activated only when:
+ *
  * <ol>
- *   <li>The {@code observarium-email} module is on the runtime classpath
- *       ({@code EmailPostingService} class is present), and</li>
- *   <li>{@code observarium.email.enabled=true} is set in application properties.</li>
+ *   <li>The {@code observarium-email} module is on the runtime classpath ({@code
+ *       EmailPostingService} class is present), and
+ *   <li>{@code observarium.email.enabled=true} is set in application properties.
  * </ol>
  */
 @AutoConfiguration
@@ -26,19 +27,19 @@ import org.springframework.context.annotation.Bean;
 @EnableConfigurationProperties(ObservariumProperties.class)
 public class EmailAutoConfiguration {
 
-    @Bean
-    @ConditionalOnMissingBean(name = "emailPostingService")
-    public PostingService emailPostingService(ObservariumProperties properties) {
-        ObservariumProperties.Email email = properties.getEmail();
-        EmailConfig config = new EmailConfig(
-                email.getSmtpHost(),
-                email.getSmtpPort(),
-                email.getFrom(),
-                email.getTo(),
-                email.getUsername(),
-                email.getPassword(),
-                email.isStartTls()
-        );
-        return new EmailPostingService(config);
-    }
+  @Bean
+  @ConditionalOnMissingBean(name = "emailPostingService")
+  public PostingService emailPostingService(ObservariumProperties properties) {
+    ObservariumProperties.Email email = properties.getEmail();
+    EmailConfig config =
+        new EmailConfig(
+            email.getSmtpHost(),
+            email.getSmtpPort(),
+            email.getFrom(),
+            email.getTo(),
+            email.getUsername(),
+            email.getPassword(),
+            email.isStartTls());
+    return new EmailPostingService(config);
+  }
 }

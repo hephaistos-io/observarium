@@ -14,10 +14,11 @@ import org.springframework.context.annotation.Bean;
  * Auto-configuration for the GitLab {@link PostingService}.
  *
  * <p>Activated only when:
+ *
  * <ol>
- *   <li>The {@code observarium-gitlab} module is on the runtime classpath
- *       ({@code GitLabPostingService} class is present), and</li>
- *   <li>{@code observarium.gitlab.enabled=true} is set in application properties.</li>
+ *   <li>The {@code observarium-gitlab} module is on the runtime classpath ({@code
+ *       GitLabPostingService} class is present), and
+ *   <li>{@code observarium.gitlab.enabled=true} is set in application properties.
  * </ol>
  */
 @AutoConfiguration
@@ -26,15 +27,12 @@ import org.springframework.context.annotation.Bean;
 @EnableConfigurationProperties(ObservariumProperties.class)
 public class GitLabAutoConfiguration {
 
-    @Bean
-    @ConditionalOnMissingBean(name = "gitLabPostingService")
-    public PostingService gitLabPostingService(ObservariumProperties properties) {
-        ObservariumProperties.GitLab gitlab = properties.getGitlab();
-        GitLabConfig config = new GitLabConfig(
-                gitlab.getBaseUrl(),
-                gitlab.getPrivateToken(),
-                gitlab.getProjectId()
-        );
-        return new GitLabPostingService(config);
-    }
+  @Bean
+  @ConditionalOnMissingBean(name = "gitLabPostingService")
+  public PostingService gitLabPostingService(ObservariumProperties properties) {
+    ObservariumProperties.GitLab gitlab = properties.getGitlab();
+    GitLabConfig config =
+        new GitLabConfig(gitlab.getBaseUrl(), gitlab.getPrivateToken(), gitlab.getProjectId());
+    return new GitLabPostingService(config);
+  }
 }

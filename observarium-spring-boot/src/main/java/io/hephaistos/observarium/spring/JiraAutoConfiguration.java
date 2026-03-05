@@ -14,10 +14,11 @@ import org.springframework.context.annotation.Bean;
  * Auto-configuration for the Jira {@link PostingService}.
  *
  * <p>Activated only when:
+ *
  * <ol>
- *   <li>The {@code observarium-jira} module is on the runtime classpath
- *       ({@code JiraPostingService} class is present), and</li>
- *   <li>{@code observarium.jira.enabled=true} is set in application properties.</li>
+ *   <li>The {@code observarium-jira} module is on the runtime classpath ({@code JiraPostingService}
+ *       class is present), and
+ *   <li>{@code observarium.jira.enabled=true} is set in application properties.
  * </ol>
  */
 @AutoConfiguration
@@ -26,17 +27,17 @@ import org.springframework.context.annotation.Bean;
 @EnableConfigurationProperties(ObservariumProperties.class)
 public class JiraAutoConfiguration {
 
-    @Bean
-    @ConditionalOnMissingBean(name = "jiraPostingService")
-    public PostingService jiraPostingService(ObservariumProperties properties) {
-        ObservariumProperties.Jira jira = properties.getJira();
-        JiraConfig config = new JiraConfig(
-                jira.getBaseUrl(),
-                jira.getUsername(),
-                jira.getApiToken(),
-                jira.getProjectKey(),
-                jira.getIssueType()
-        );
-        return new JiraPostingService(config);
-    }
+  @Bean
+  @ConditionalOnMissingBean(name = "jiraPostingService")
+  public PostingService jiraPostingService(ObservariumProperties properties) {
+    ObservariumProperties.Jira jira = properties.getJira();
+    JiraConfig config =
+        new JiraConfig(
+            jira.getBaseUrl(),
+            jira.getUsername(),
+            jira.getApiToken(),
+            jira.getProjectKey(),
+            jira.getIssueType());
+    return new JiraPostingService(config);
+  }
 }

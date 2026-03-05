@@ -10,30 +10,27 @@ import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
 
 /**
- * JAX-RS {@link ExceptionMapper} that captures all unhandled exceptions via Observarium
- * and returns an HTTP 500 response.
+ * JAX-RS {@link ExceptionMapper} that captures all unhandled exceptions via Observarium and returns
+ * an HTTP 500 response.
  *
- * <p>Registered with {@link Priority}{@code (Priorities.USER + 1000)} so that
- * application-defined mappers with lower priority values take precedence and this
- * handler acts only as a last-resort fallback.
+ * <p>Registered with {@link Priority}{@code (Priorities.USER + 1000)} so that application-defined
+ * mappers with lower priority values take precedence and this handler acts only as a last-resort
+ * fallback.
  *
- * <p>Only activated when {@code jakarta.ws.rs-api} is on the classpath (i.e. in a
- * JAX-RS application). Quarkus REST (RESTEasy Reactive or RESTEasy Classic) will
- * automatically discover this provider via CDI scanning.
+ * <p>Only activated when {@code jakarta.ws.rs-api} is on the classpath (i.e. in a JAX-RS
+ * application). Quarkus REST (RESTEasy Reactive or RESTEasy Classic) will automatically discover
+ * this provider via CDI scanning.
  */
 @Provider
 @ApplicationScoped
 @Priority(Priorities.USER + 1000)
 public class ObservariumExceptionMapper implements ExceptionMapper<Exception> {
 
-    @Inject
-    Observarium observarium;
+  @Inject Observarium observarium;
 
-    @Override
-    public Response toResponse(Exception exception) {
-        observarium.captureException(exception);
-        return Response.serverError()
-                .entity("An unexpected error occurred")
-                .build();
-    }
+  @Override
+  public Response toResponse(Exception exception) {
+    observarium.captureException(exception);
+    return Response.serverError().entity("An unexpected error occurred").build();
+  }
 }

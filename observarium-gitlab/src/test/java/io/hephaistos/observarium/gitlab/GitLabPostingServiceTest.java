@@ -1,560 +1,587 @@
 package io.hephaistos.observarium.gitlab;
 
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
 import com.google.gson.Gson;
 import io.hephaistos.observarium.event.ExceptionEvent;
 import io.hephaistos.observarium.event.Severity;
 import io.hephaistos.observarium.posting.DefaultIssueFormatter;
 import io.hephaistos.observarium.posting.DuplicateSearchResult;
 import io.hephaistos.observarium.posting.PostingResult;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
 import java.io.IOException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Instant;
 import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 /**
  * Unit tests for {@link GitLabPostingService} and {@link GitLabConfig}.
  *
- * <p>HTTP interactions are verified through a stubbed {@link HttpClient} to avoid
- * any real network calls.
+ * <p>HTTP interactions are verified through a stubbed {@link HttpClient} to avoid any real network
+ * calls.
  */
 class GitLabPostingServiceTest {
 
-    private static final GitLabConfig CONFIG = new GitLabConfig(
-        "https://gitlab.example.com",
-        "glpat-test-token",
-        "42"
-    );
+  private static final GitLabConfig CONFIG =
+      new GitLabConfig("https://gitlab.example.com", "glpat-test-token", "42");
 
-    private static final GitLabConfig NAMESPACE_CONFIG = new GitLabConfig(
-        "https://gitlab.example.com",
-        "glpat-test-token",
-        "mygroup/myproject"
-    );
+  private static final GitLabConfig NAMESPACE_CONFIG =
+      new GitLabConfig("https://gitlab.example.com", "glpat-test-token", "mygroup/myproject");
 
-    private HttpClient mockHttpClient;
+  private HttpClient mockHttpClient;
 
-    @BeforeEach
-    void setUpMockClient() {
-        mockHttpClient = mock(HttpClient.class);
-    }
+  @BeforeEach
+  void setUpMockClient() {
+    mockHttpClient = mock(HttpClient.class);
+  }
 
-    // -------------------------------------------------------------------------
-    // GitLabConfig tests
-    // -------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // GitLabConfig tests
+  // -------------------------------------------------------------------------
 
-    @Test
-    void config_storesAllFields() {
-        assertEquals("https://gitlab.example.com", CONFIG.baseUrl());
-        assertEquals("glpat-test-token", CONFIG.privateToken());
-        assertEquals("42", CONFIG.projectId());
-    }
+  @Test
+  void config_storesAllFields() {
+    assertEquals("https://gitlab.example.com", CONFIG.baseUrl());
+    assertEquals("glpat-test-token", CONFIG.privateToken());
+    assertEquals("42", CONFIG.projectId());
+  }
 
-    // -------------------------------------------------------------------------
-    // name()
-    // -------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // name()
+  // -------------------------------------------------------------------------
 
-    @Test
-    void name_returnsGitlab() {
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
-        assertEquals("gitlab", service.name());
-    }
+  @Test
+  void name_returnsGitlab() {
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    assertEquals("gitlab", service.name());
+  }
 
-    // -------------------------------------------------------------------------
-    // findDuplicate() — success paths
-    // -------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // findDuplicate() — success paths
+  // -------------------------------------------------------------------------
 
-    @Test
-    @SuppressWarnings("unchecked")
-    void findDuplicate_returnsFound_whenIssueExists() throws Exception {
-        String responseBody = """
+  @Test
+  @SuppressWarnings("unchecked")
+  void findDuplicate_returnsFound_whenIssueExists() throws Exception {
+    String responseBody =
+        """
                 [
                   { "iid": 5, "web_url": "https://gitlab.example.com/group/proj/-/issues/5" }
                 ]
                 """;
 
-        HttpResponse<String> httpResponse = mock(HttpResponse.class);
-        when(httpResponse.statusCode()).thenReturn(200);
-        when(httpResponse.body()).thenReturn(responseBody);
-        when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
-                .thenReturn(httpResponse);
+    HttpResponse<String> httpResponse = mock(HttpResponse.class);
+    when(httpResponse.statusCode()).thenReturn(200);
+    when(httpResponse.body()).thenReturn(responseBody);
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
-        DuplicateSearchResult result = service.findDuplicate(buildEvent("SomeException", "boom"));
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    DuplicateSearchResult result = service.findDuplicate(buildEvent("SomeException", "boom"));
 
-        assertTrue(result.found());
-        assertEquals("5", result.externalIssueId());
-        assertEquals("https://gitlab.example.com/group/proj/-/issues/5", result.url());
-    }
+    assertTrue(result.found());
+    assertEquals("5", result.externalIssueId());
+    assertEquals("https://gitlab.example.com/group/proj/-/issues/5", result.url());
+  }
 
-    @Test
-    @SuppressWarnings("unchecked")
-    void findDuplicate_returnsFound_usesFirstIssueWhenMultipleExist() throws Exception {
-        String responseBody = """
+  @Test
+  @SuppressWarnings("unchecked")
+  void findDuplicate_returnsFound_usesFirstIssueWhenMultipleExist() throws Exception {
+    String responseBody =
+        """
                 [
                   { "iid": 3, "web_url": "https://gitlab.example.com/proj/-/issues/3" },
                   { "iid": 7, "web_url": "https://gitlab.example.com/proj/-/issues/7" }
                 ]
                 """;
 
-        HttpResponse<String> httpResponse = mock(HttpResponse.class);
-        when(httpResponse.statusCode()).thenReturn(200);
-        when(httpResponse.body()).thenReturn(responseBody);
-        when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
-                .thenReturn(httpResponse);
+    HttpResponse<String> httpResponse = mock(HttpResponse.class);
+    when(httpResponse.statusCode()).thenReturn(200);
+    when(httpResponse.body()).thenReturn(responseBody);
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
-        DuplicateSearchResult result = service.findDuplicate(buildEvent("SomeException", "boom"));
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    DuplicateSearchResult result = service.findDuplicate(buildEvent("SomeException", "boom"));
 
-        assertTrue(result.found());
-        assertEquals("3", result.externalIssueId());
-    }
+    assertTrue(result.found());
+    assertEquals("3", result.externalIssueId());
+  }
 
-    @Test
-    @SuppressWarnings("unchecked")
-    void findDuplicate_returnsNotFound_whenResponseIsEmptyArray() throws Exception {
-        HttpResponse<String> httpResponse = mock(HttpResponse.class);
-        when(httpResponse.statusCode()).thenReturn(200);
-        when(httpResponse.body()).thenReturn("[]");
-        when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
-                .thenReturn(httpResponse);
+  @Test
+  @SuppressWarnings("unchecked")
+  void findDuplicate_returnsNotFound_whenResponseIsEmptyArray() throws Exception {
+    HttpResponse<String> httpResponse = mock(HttpResponse.class);
+    when(httpResponse.statusCode()).thenReturn(200);
+    when(httpResponse.body()).thenReturn("[]");
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
-        DuplicateSearchResult result = service.findDuplicate(buildEvent("SomeException", "boom"));
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    DuplicateSearchResult result = service.findDuplicate(buildEvent("SomeException", "boom"));
 
-        assertFalse(result.found());
-        assertNull(result.externalIssueId());
-    }
+    assertFalse(result.found());
+    assertNull(result.externalIssueId());
+  }
 
-    // -------------------------------------------------------------------------
-    // findDuplicate() — error paths
-    // -------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // findDuplicate() — error paths
+  // -------------------------------------------------------------------------
 
-    @Test
-    @SuppressWarnings("unchecked")
-    void findDuplicate_returnsNotFound_whenGitLabReturns401() throws Exception {
-        HttpResponse<String> httpResponse = mock(HttpResponse.class);
-        when(httpResponse.statusCode()).thenReturn(401);
-        when(httpResponse.body()).thenReturn("{\"message\":\"401 Unauthorized\"}");
-        when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
-                .thenReturn(httpResponse);
+  @Test
+  @SuppressWarnings("unchecked")
+  void findDuplicate_returnsNotFound_whenGitLabReturns401() throws Exception {
+    HttpResponse<String> httpResponse = mock(HttpResponse.class);
+    when(httpResponse.statusCode()).thenReturn(401);
+    when(httpResponse.body()).thenReturn("{\"message\":\"401 Unauthorized\"}");
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
-        DuplicateSearchResult result = service.findDuplicate(buildEvent("SomeException", "boom"));
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    DuplicateSearchResult result = service.findDuplicate(buildEvent("SomeException", "boom"));
 
-        assertFalse(result.found());
-    }
+    assertFalse(result.found());
+  }
 
-    @Test
-    @SuppressWarnings("unchecked")
-    void findDuplicate_returnsNotFound_whenGitLabReturns500() throws Exception {
-        HttpResponse<String> httpResponse = mock(HttpResponse.class);
-        when(httpResponse.statusCode()).thenReturn(500);
-        when(httpResponse.body()).thenReturn("Internal Server Error");
-        when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
-                .thenReturn(httpResponse);
+  @Test
+  @SuppressWarnings("unchecked")
+  void findDuplicate_returnsNotFound_whenGitLabReturns500() throws Exception {
+    HttpResponse<String> httpResponse = mock(HttpResponse.class);
+    when(httpResponse.statusCode()).thenReturn(500);
+    when(httpResponse.body()).thenReturn("Internal Server Error");
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
-        DuplicateSearchResult result = service.findDuplicate(buildEvent("SomeException", "boom"));
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    DuplicateSearchResult result = service.findDuplicate(buildEvent("SomeException", "boom"));
 
-        assertFalse(result.found());
-    }
+    assertFalse(result.found());
+  }
 
-    @Test
-    @SuppressWarnings("unchecked")
-    void findDuplicate_returnsNotFound_onNetworkFailure() throws Exception {
-        when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
-                .thenThrow(new IOException("connection refused"));
+  @Test
+  @SuppressWarnings("unchecked")
+  void findDuplicate_returnsNotFound_onNetworkFailure() throws Exception {
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenThrow(new IOException("connection refused"));
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
-        DuplicateSearchResult result = service.findDuplicate(buildEvent("SomeException", "boom"));
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    DuplicateSearchResult result = service.findDuplicate(buildEvent("SomeException", "boom"));
 
-        assertFalse(result.found());
-    }
+    assertFalse(result.found());
+  }
 
-    // -------------------------------------------------------------------------
-    // createIssue() — success paths
-    // -------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // createIssue() — success paths
+  // -------------------------------------------------------------------------
 
-    @Test
-    @SuppressWarnings("unchecked")
-    void createIssue_returnsSuccess_whenGitLabResponds201() throws Exception {
-        String responseBody = """
+  @Test
+  @SuppressWarnings("unchecked")
+  void createIssue_returnsSuccess_whenGitLabResponds201() throws Exception {
+    String responseBody =
+        """
                 {
                   "iid": 12,
                   "web_url": "https://gitlab.example.com/group/proj/-/issues/12"
                 }
                 """;
 
-        HttpResponse<String> httpResponse = mock(HttpResponse.class);
-        when(httpResponse.statusCode()).thenReturn(201);
-        when(httpResponse.body()).thenReturn(responseBody);
-        when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
-                .thenReturn(httpResponse);
+    HttpResponse<String> httpResponse = mock(HttpResponse.class);
+    when(httpResponse.statusCode()).thenReturn(201);
+    when(httpResponse.body()).thenReturn(responseBody);
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
-        PostingResult result = service.createIssue(buildEvent("SomeException", "boom"));
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    PostingResult result = service.createIssue(buildEvent("SomeException", "boom"));
 
-        assertTrue(result.success());
-        assertEquals("12", result.externalIssueId());
-        assertEquals("https://gitlab.example.com/group/proj/-/issues/12", result.url());
-        assertNull(result.errorMessage());
-    }
+    assertTrue(result.success());
+    assertEquals("12", result.externalIssueId());
+    assertEquals("https://gitlab.example.com/group/proj/-/issues/12", result.url());
+    assertNull(result.errorMessage());
+  }
 
-    @Test
-    @SuppressWarnings("unchecked")
-    void createIssue_returnsSuccess_whenGitLabResponds200() throws Exception {
-        String responseBody = """
+  @Test
+  @SuppressWarnings("unchecked")
+  void createIssue_returnsSuccess_whenGitLabResponds200() throws Exception {
+    String responseBody =
+        """
                 {
                   "iid": 7,
                   "web_url": "https://gitlab.example.com/proj/-/issues/7"
                 }
                 """;
 
-        HttpResponse<String> httpResponse = mock(HttpResponse.class);
-        when(httpResponse.statusCode()).thenReturn(200);
-        when(httpResponse.body()).thenReturn(responseBody);
-        when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
-                .thenReturn(httpResponse);
+    HttpResponse<String> httpResponse = mock(HttpResponse.class);
+    when(httpResponse.statusCode()).thenReturn(200);
+    when(httpResponse.body()).thenReturn(responseBody);
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
-        PostingResult result = service.createIssue(buildEvent("SomeException", "boom"));
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    PostingResult result = service.createIssue(buildEvent("SomeException", "boom"));
 
-        assertTrue(result.success());
-        assertEquals("7", result.externalIssueId());
-    }
+    assertTrue(result.success());
+    assertEquals("7", result.externalIssueId());
+  }
 
-    // -------------------------------------------------------------------------
-    // createIssue() — error paths
-    // -------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // createIssue() — error paths
+  // -------------------------------------------------------------------------
 
-    @Test
-    @SuppressWarnings("unchecked")
-    void createIssue_returnsFailure_whenGitLabReturns403() throws Exception {
-        HttpResponse<String> httpResponse = mock(HttpResponse.class);
-        when(httpResponse.statusCode()).thenReturn(403);
-        when(httpResponse.body()).thenReturn("{\"message\":\"403 Forbidden\"}");
-        when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
-                .thenReturn(httpResponse);
+  @Test
+  @SuppressWarnings("unchecked")
+  void createIssue_returnsFailure_whenGitLabReturns403() throws Exception {
+    HttpResponse<String> httpResponse = mock(HttpResponse.class);
+    when(httpResponse.statusCode()).thenReturn(403);
+    when(httpResponse.body()).thenReturn("{\"message\":\"403 Forbidden\"}");
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
-        PostingResult result = service.createIssue(buildEvent("SomeException", "boom"));
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    PostingResult result = service.createIssue(buildEvent("SomeException", "boom"));
 
-        assertFalse(result.success());
-        assertNotNull(result.errorMessage());
-        assertTrue(result.errorMessage().contains("403"));
-    }
+    assertFalse(result.success());
+    assertNotNull(result.errorMessage());
+    assertTrue(result.errorMessage().contains("403"));
+  }
 
-    @Test
-    @SuppressWarnings("unchecked")
-    void createIssue_returnsFailure_whenGitLabReturns422() throws Exception {
-        HttpResponse<String> httpResponse = mock(HttpResponse.class);
-        when(httpResponse.statusCode()).thenReturn(422);
-        when(httpResponse.body()).thenReturn("{\"message\":\"Validation failed\"}");
-        when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
-                .thenReturn(httpResponse);
+  @Test
+  @SuppressWarnings("unchecked")
+  void createIssue_returnsFailure_whenGitLabReturns422() throws Exception {
+    HttpResponse<String> httpResponse = mock(HttpResponse.class);
+    when(httpResponse.statusCode()).thenReturn(422);
+    when(httpResponse.body()).thenReturn("{\"message\":\"Validation failed\"}");
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
-        PostingResult result = service.createIssue(buildEvent("SomeException", "boom"));
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    PostingResult result = service.createIssue(buildEvent("SomeException", "boom"));
 
-        assertFalse(result.success());
-        assertTrue(result.errorMessage().contains("422"));
-    }
+    assertFalse(result.success());
+    assertTrue(result.errorMessage().contains("422"));
+  }
 
-    @Test
-    @SuppressWarnings("unchecked")
-    void createIssue_returnsFailure_onNetworkError() throws Exception {
-        when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
-                .thenThrow(new IOException("timeout"));
+  @Test
+  @SuppressWarnings("unchecked")
+  void createIssue_returnsFailure_onNetworkError() throws Exception {
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenThrow(new IOException("timeout"));
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
-        PostingResult result = service.createIssue(buildEvent("SomeException", "boom"));
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    PostingResult result = service.createIssue(buildEvent("SomeException", "boom"));
 
-        assertFalse(result.success());
-        assertNotNull(result.errorMessage());
-        assertTrue(result.errorMessage().contains("timeout"));
-    }
+    assertFalse(result.success());
+    assertNotNull(result.errorMessage());
+    assertTrue(result.errorMessage().contains("timeout"));
+  }
 
-    // -------------------------------------------------------------------------
-    // commentOnIssue() — success paths
-    // -------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // commentOnIssue() — success paths
+  // -------------------------------------------------------------------------
 
-    @Test
-    @SuppressWarnings("unchecked")
-    void commentOnIssue_returnsSuccess_withNoteId() throws Exception {
-        String responseBody = """
+  @Test
+  @SuppressWarnings("unchecked")
+  void commentOnIssue_returnsSuccess_withNoteId() throws Exception {
+    String responseBody =
+        """
                 {
                   "id": 888,
                   "body": "Occurred again"
                 }
                 """;
 
-        HttpResponse<String> httpResponse = mock(HttpResponse.class);
-        when(httpResponse.statusCode()).thenReturn(201);
-        when(httpResponse.body()).thenReturn(responseBody);
-        when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
-                .thenReturn(httpResponse);
+    HttpResponse<String> httpResponse = mock(HttpResponse.class);
+    when(httpResponse.statusCode()).thenReturn(201);
+    when(httpResponse.body()).thenReturn(responseBody);
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
-        PostingResult result = service.commentOnIssue("5", buildEvent("SomeException", "boom"));
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    PostingResult result = service.commentOnIssue("5", buildEvent("SomeException", "boom"));
 
-        assertTrue(result.success());
-        assertEquals("888", result.externalIssueId());
-        // GitLab notes have no dedicated URL in the response; url() is null
-        assertNull(result.url());
-    }
+    assertTrue(result.success());
+    assertEquals("888", result.externalIssueId());
+    // GitLab notes have no dedicated URL in the response; url() is null
+    assertNull(result.url());
+  }
 
-    @Test
-    @SuppressWarnings("unchecked")
-    void commentOnIssue_returnsSuccess_whenGitLabResponds200() throws Exception {
-        String responseBody = """
+  @Test
+  @SuppressWarnings("unchecked")
+  void commentOnIssue_returnsSuccess_whenGitLabResponds200() throws Exception {
+    String responseBody =
+        """
                 {
                   "id": 42,
                   "body": "comment text"
                 }
                 """;
 
-        HttpResponse<String> httpResponse = mock(HttpResponse.class);
-        when(httpResponse.statusCode()).thenReturn(200);
-        when(httpResponse.body()).thenReturn(responseBody);
-        when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
-                .thenReturn(httpResponse);
+    HttpResponse<String> httpResponse = mock(HttpResponse.class);
+    when(httpResponse.statusCode()).thenReturn(200);
+    when(httpResponse.body()).thenReturn(responseBody);
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
-        PostingResult result = service.commentOnIssue("10", buildEvent("SomeException", "boom"));
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    PostingResult result = service.commentOnIssue("10", buildEvent("SomeException", "boom"));
 
-        assertTrue(result.success());
-        assertEquals("42", result.externalIssueId());
-    }
+    assertTrue(result.success());
+    assertEquals("42", result.externalIssueId());
+  }
 
-    // -------------------------------------------------------------------------
-    // commentOnIssue() — error paths
-    // -------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // commentOnIssue() — error paths
+  // -------------------------------------------------------------------------
 
-    @Test
-    @SuppressWarnings("unchecked")
-    void commentOnIssue_returnsFailure_whenGitLabReturns404() throws Exception {
-        HttpResponse<String> httpResponse = mock(HttpResponse.class);
-        when(httpResponse.statusCode()).thenReturn(404);
-        when(httpResponse.body()).thenReturn("{\"message\":\"404 Issue Not Found\"}");
-        when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
-                .thenReturn(httpResponse);
+  @Test
+  @SuppressWarnings("unchecked")
+  void commentOnIssue_returnsFailure_whenGitLabReturns404() throws Exception {
+    HttpResponse<String> httpResponse = mock(HttpResponse.class);
+    when(httpResponse.statusCode()).thenReturn(404);
+    when(httpResponse.body()).thenReturn("{\"message\":\"404 Issue Not Found\"}");
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
-        PostingResult result = service.commentOnIssue("9999", buildEvent("SomeException", "boom"));
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    PostingResult result = service.commentOnIssue("9999", buildEvent("SomeException", "boom"));
 
-        assertFalse(result.success());
-        assertNotNull(result.errorMessage());
-        assertTrue(result.errorMessage().contains("404"));
-    }
+    assertFalse(result.success());
+    assertNotNull(result.errorMessage());
+    assertTrue(result.errorMessage().contains("404"));
+  }
 
-    @Test
-    @SuppressWarnings("unchecked")
-    void commentOnIssue_returnsFailure_whenGitLabReturns403() throws Exception {
-        HttpResponse<String> httpResponse = mock(HttpResponse.class);
-        when(httpResponse.statusCode()).thenReturn(403);
-        when(httpResponse.body()).thenReturn("{\"message\":\"Forbidden\"}");
-        when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
-                .thenReturn(httpResponse);
+  @Test
+  @SuppressWarnings("unchecked")
+  void commentOnIssue_returnsFailure_whenGitLabReturns403() throws Exception {
+    HttpResponse<String> httpResponse = mock(HttpResponse.class);
+    when(httpResponse.statusCode()).thenReturn(403);
+    when(httpResponse.body()).thenReturn("{\"message\":\"Forbidden\"}");
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
-        PostingResult result = service.commentOnIssue("1", buildEvent("SomeException", "boom"));
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    PostingResult result = service.commentOnIssue("1", buildEvent("SomeException", "boom"));
 
-        assertFalse(result.success());
-        assertTrue(result.errorMessage().contains("403"));
-    }
+    assertFalse(result.success());
+    assertTrue(result.errorMessage().contains("403"));
+  }
 
-    @Test
-    @SuppressWarnings("unchecked")
-    void commentOnIssue_returnsFailure_onNetworkFailure() throws Exception {
-        when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
-                .thenThrow(new IOException("connection reset"));
+  @Test
+  @SuppressWarnings("unchecked")
+  void commentOnIssue_returnsFailure_onNetworkFailure() throws Exception {
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenThrow(new IOException("connection reset"));
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
-        PostingResult result = service.commentOnIssue("5", buildEvent("SomeException", "boom"));
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    PostingResult result = service.commentOnIssue("5", buildEvent("SomeException", "boom"));
 
-        assertFalse(result.success());
-        assertNotNull(result.errorMessage());
-        assertTrue(result.errorMessage().contains("connection reset"));
-    }
+    assertFalse(result.success());
+    assertNotNull(result.errorMessage());
+    assertTrue(result.errorMessage().contains("connection reset"));
+  }
 
-    // -------------------------------------------------------------------------
-    // URL encoding — namespace/path project IDs
-    // -------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // URL encoding — namespace/path project IDs
+  // -------------------------------------------------------------------------
 
-    @Test
-    @SuppressWarnings("unchecked")
-    void findDuplicate_urlEncodesNamespaceProjectId() throws Exception {
-        // "mygroup/myproject" must be percent-encoded to "mygroup%2Fmyproject" in the URL
-        HttpResponse<String> httpResponse = mock(HttpResponse.class);
-        when(httpResponse.statusCode()).thenReturn(200);
-        when(httpResponse.body()).thenReturn("[]");
-        when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
-                .thenReturn(httpResponse);
+  @Test
+  @SuppressWarnings("unchecked")
+  void findDuplicate_urlEncodesNamespaceProjectId() throws Exception {
+    // "mygroup/myproject" must be percent-encoded to "mygroup%2Fmyproject" in the URL
+    HttpResponse<String> httpResponse = mock(HttpResponse.class);
+    when(httpResponse.statusCode()).thenReturn(200);
+    when(httpResponse.body()).thenReturn("[]");
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(NAMESPACE_CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
-        service.findDuplicate(buildEvent("SomeException", "boom"));
+    GitLabPostingService service =
+        new GitLabPostingService(
+            NAMESPACE_CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    service.findDuplicate(buildEvent("SomeException", "boom"));
 
-        verify(mockHttpClient).send(
+    verify(mockHttpClient)
+        .send(
             argThat(req -> req.uri().toString().contains("mygroup%2Fmyproject")),
-            any(HttpResponse.BodyHandler.class)
-        );
-    }
+            any(HttpResponse.BodyHandler.class));
+  }
 
-    @Test
-    @SuppressWarnings("unchecked")
-    void createIssue_urlEncodesNamespaceProjectId() throws Exception {
-        String responseBody = """
+  @Test
+  @SuppressWarnings("unchecked")
+  void createIssue_urlEncodesNamespaceProjectId() throws Exception {
+    String responseBody =
+        """
                 { "iid": 1, "web_url": "https://gitlab.example.com/mygroup/myproject/-/issues/1" }
                 """;
 
-        HttpResponse<String> httpResponse = mock(HttpResponse.class);
-        when(httpResponse.statusCode()).thenReturn(201);
-        when(httpResponse.body()).thenReturn(responseBody);
-        when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
-                .thenReturn(httpResponse);
+    HttpResponse<String> httpResponse = mock(HttpResponse.class);
+    when(httpResponse.statusCode()).thenReturn(201);
+    when(httpResponse.body()).thenReturn(responseBody);
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(NAMESPACE_CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
-        service.createIssue(buildEvent("SomeException", "boom"));
+    GitLabPostingService service =
+        new GitLabPostingService(
+            NAMESPACE_CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    service.createIssue(buildEvent("SomeException", "boom"));
 
-        verify(mockHttpClient).send(
+    verify(mockHttpClient)
+        .send(
             argThat(req -> req.uri().toString().contains("mygroup%2Fmyproject")),
-            any(HttpResponse.BodyHandler.class)
-        );
-    }
+            any(HttpResponse.BodyHandler.class));
+  }
 
-    @Test
-    @SuppressWarnings("unchecked")
-    void commentOnIssue_urlEncodesNamespaceProjectId() throws Exception {
-        String responseBody = "{ \"id\": 1 }";
+  @Test
+  @SuppressWarnings("unchecked")
+  void commentOnIssue_urlEncodesNamespaceProjectId() throws Exception {
+    String responseBody = "{ \"id\": 1 }";
 
-        HttpResponse<String> httpResponse = mock(HttpResponse.class);
-        when(httpResponse.statusCode()).thenReturn(201);
-        when(httpResponse.body()).thenReturn(responseBody);
-        when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
-                .thenReturn(httpResponse);
+    HttpResponse<String> httpResponse = mock(HttpResponse.class);
+    when(httpResponse.statusCode()).thenReturn(201);
+    when(httpResponse.body()).thenReturn(responseBody);
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(NAMESPACE_CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
-        service.commentOnIssue("3", buildEvent("SomeException", "boom"));
+    GitLabPostingService service =
+        new GitLabPostingService(
+            NAMESPACE_CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    service.commentOnIssue("3", buildEvent("SomeException", "boom"));
 
-        verify(mockHttpClient).send(
+    verify(mockHttpClient)
+        .send(
             argThat(req -> req.uri().toString().contains("mygroup%2Fmyproject")),
-            any(HttpResponse.BodyHandler.class)
-        );
-    }
+            any(HttpResponse.BodyHandler.class));
+  }
 
-    // -------------------------------------------------------------------------
-    // fingerprintLabel truncation edge cases
-    // -------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // fingerprintLabel truncation edge cases
+  // -------------------------------------------------------------------------
 
-    @Test
-    @SuppressWarnings("unchecked")
-    void findDuplicate_truncatesFingerprintLabelToFirst12Chars() throws Exception {
-        // fingerprint is 24 chars; label must use only the first 12
-        HttpResponse<String> httpResponse = mock(HttpResponse.class);
-        when(httpResponse.statusCode()).thenReturn(200);
-        when(httpResponse.body()).thenReturn("[]");
-        when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
-                .thenReturn(httpResponse);
+  @Test
+  @SuppressWarnings("unchecked")
+  void findDuplicate_truncatesFingerprintLabelToFirst12Chars() throws Exception {
+    // fingerprint is 24 chars; label must use only the first 12
+    HttpResponse<String> httpResponse = mock(HttpResponse.class);
+    when(httpResponse.statusCode()).thenReturn(200);
+    when(httpResponse.body()).thenReturn("[]");
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
-        service.findDuplicate(buildEvent("SomeException", "boom", "abcdef123456789xyz012345"));
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    service.findDuplicate(buildEvent("SomeException", "boom", "abcdef123456789xyz012345"));
 
-        verify(mockHttpClient).send(
+    verify(mockHttpClient)
+        .send(
             argThat(req -> req.uri().toString().contains("observarium-abcdef123456")),
-            any(HttpResponse.BodyHandler.class)
-        );
-    }
+            any(HttpResponse.BodyHandler.class));
+  }
 
-    @Test
-    @SuppressWarnings("unchecked")
-    void findDuplicate_usesFullFingerprintWhenShorterThan12Chars() throws Exception {
-        // fingerprint is only 6 chars; label must use it in full
-        HttpResponse<String> httpResponse = mock(HttpResponse.class);
-        when(httpResponse.statusCode()).thenReturn(200);
-        when(httpResponse.body()).thenReturn("[]");
-        when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
-                .thenReturn(httpResponse);
+  @Test
+  @SuppressWarnings("unchecked")
+  void findDuplicate_usesFullFingerprintWhenShorterThan12Chars() throws Exception {
+    // fingerprint is only 6 chars; label must use it in full
+    HttpResponse<String> httpResponse = mock(HttpResponse.class);
+    when(httpResponse.statusCode()).thenReturn(200);
+    when(httpResponse.body()).thenReturn("[]");
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
-        service.findDuplicate(buildEvent("SomeException", "boom", "short"));
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    service.findDuplicate(buildEvent("SomeException", "boom", "short"));
 
-        verify(mockHttpClient).send(
+    verify(mockHttpClient)
+        .send(
             argThat(req -> req.uri().toString().contains("observarium-short")),
-            any(HttpResponse.BodyHandler.class)
-        );
-    }
+            any(HttpResponse.BodyHandler.class));
+  }
 
-    @Test
-    @SuppressWarnings("unchecked")
-    void findDuplicate_usesFullFingerprintWhenExactly12Chars() throws Exception {
-        HttpResponse<String> httpResponse = mock(HttpResponse.class);
-        when(httpResponse.statusCode()).thenReturn(200);
-        when(httpResponse.body()).thenReturn("[]");
-        when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
-                .thenReturn(httpResponse);
+  @Test
+  @SuppressWarnings("unchecked")
+  void findDuplicate_usesFullFingerprintWhenExactly12Chars() throws Exception {
+    HttpResponse<String> httpResponse = mock(HttpResponse.class);
+    when(httpResponse.statusCode()).thenReturn(200);
+    when(httpResponse.body()).thenReturn("[]");
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenReturn(httpResponse);
 
-        GitLabPostingService service = new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
-        service.findDuplicate(buildEvent("SomeException", "boom", "exactly12chr"));
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    service.findDuplicate(buildEvent("SomeException", "boom", "exactly12chr"));
 
-        verify(mockHttpClient).send(
+    verify(mockHttpClient)
+        .send(
             argThat(req -> req.uri().toString().contains("observarium-exactly12chr")),
-            any(HttpResponse.BodyHandler.class)
-        );
-    }
+            any(HttpResponse.BodyHandler.class));
+  }
 
-    // -------------------------------------------------------------------------
-    // Fallback: network-failure tests using the real constructor
-    // (exercises the public single-arg constructor code path)
-    // -------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // Fallback: network-failure tests using the real constructor
+  // (exercises the public single-arg constructor code path)
+  // -------------------------------------------------------------------------
 
-    @Test
-    void findDuplicate_returnsNotFound_whenRealHttpClientCannotConnect() {
-        GitLabPostingService service = new GitLabPostingService(CONFIG);
-        DuplicateSearchResult result = service.findDuplicate(buildEvent("SomeException", "boom"));
-        assertFalse(result.found());
-    }
+  @Test
+  void findDuplicate_returnsNotFound_whenRealHttpClientCannotConnect() {
+    GitLabPostingService service = new GitLabPostingService(CONFIG);
+    DuplicateSearchResult result = service.findDuplicate(buildEvent("SomeException", "boom"));
+    assertFalse(result.found());
+  }
 
-    @Test
-    void createIssue_returnsFailure_whenRealHttpClientCannotConnect() {
-        GitLabPostingService service = new GitLabPostingService(CONFIG);
-        PostingResult result = service.createIssue(buildEvent("SomeException", "boom"));
-        assertFalse(result.success());
-    }
+  @Test
+  void createIssue_returnsFailure_whenRealHttpClientCannotConnect() {
+    GitLabPostingService service = new GitLabPostingService(CONFIG);
+    PostingResult result = service.createIssue(buildEvent("SomeException", "boom"));
+    assertFalse(result.success());
+  }
 
-    @Test
-    void commentOnIssue_returnsFailure_whenRealHttpClientCannotConnect() {
-        GitLabPostingService service = new GitLabPostingService(CONFIG);
-        PostingResult result = service.commentOnIssue("99", buildEvent("SomeException", "boom"));
-        assertFalse(result.success());
-    }
+  @Test
+  void commentOnIssue_returnsFailure_whenRealHttpClientCannotConnect() {
+    GitLabPostingService service = new GitLabPostingService(CONFIG);
+    PostingResult result = service.commentOnIssue("99", buildEvent("SomeException", "boom"));
+    assertFalse(result.success());
+  }
 
-    // -------------------------------------------------------------------------
-    // Helpers
-    // -------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // Helpers
+  // -------------------------------------------------------------------------
 
-    private static ExceptionEvent buildEvent(String exceptionClass, String message) {
-        return buildEvent(exceptionClass, message, "test-fingerprint");
-    }
+  private static ExceptionEvent buildEvent(String exceptionClass, String message) {
+    return buildEvent(exceptionClass, message, "test-fingerprint");
+  }
 
-    private static ExceptionEvent buildEvent(String exceptionClass, String message, String fingerprint) {
-        return ExceptionEvent.builder()
-                .fingerprint(fingerprint)
-                .exceptionClass(exceptionClass)
-                .message(message)
-                .rawStackTrace("at com.example.Foo.bar(Foo.java:42)")
-                .severity(Severity.ERROR)
-                .timestamp(Instant.parse("2025-06-01T12:00:00Z"))
-                .threadName("main")
-                .tags(Map.of("env", "test"))
-                .build();
-    }
+  private static ExceptionEvent buildEvent(
+      String exceptionClass, String message, String fingerprint) {
+    return ExceptionEvent.builder()
+        .fingerprint(fingerprint)
+        .exceptionClass(exceptionClass)
+        .message(message)
+        .rawStackTrace("at com.example.Foo.bar(Foo.java:42)")
+        .severity(Severity.ERROR)
+        .timestamp(Instant.parse("2025-06-01T12:00:00Z"))
+        .threadName("main")
+        .tags(Map.of("env", "test"))
+        .build();
+  }
 }

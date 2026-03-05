@@ -1,5 +1,7 @@
 package io.hephaistos.observarium.handler;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 import io.hephaistos.observarium.event.ExceptionEvent;
 import io.hephaistos.observarium.event.Severity;
 import io.hephaistos.observarium.fingerprint.ExceptionFingerprinter;
@@ -7,296 +9,309 @@ import io.hephaistos.observarium.posting.DuplicateSearchResult;
 import io.hephaistos.observarium.posting.PostingResult;
 import io.hephaistos.observarium.posting.PostingService;
 import io.hephaistos.observarium.scrub.DataScrubber;
-import org.junit.jupiter.api.Test;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Test;
 
 class ExceptionProcessorTest {
 
-    // -----------------------------------------------------------------------
-    // Minimal stub implementations — no Mockito required
-    // -----------------------------------------------------------------------
+  // -----------------------------------------------------------------------
+  // Minimal stub implementations — no Mockito required
+  // -----------------------------------------------------------------------
 
-    /** Fingerprinter that always returns a fixed hash-shaped string. */
-    private static final ExceptionFingerprinter FIXED_FINGERPRINTER =
-        throwable -> "a".repeat(64);
+  /** Fingerprinter that always returns a fixed hash-shaped string. */
+  private static final ExceptionFingerprinter FIXED_FINGERPRINTER = throwable -> "a".repeat(64);
 
-    /** Scrubber that returns text as-is (transparent). */
-    private static final DataScrubber PASSTHROUGH_SCRUBBER = text -> text;
+  /** Scrubber that returns text as-is (transparent). */
+  private static final DataScrubber PASSTHROUGH_SCRUBBER = text -> text;
 
-    /** Scrubber that prefixes every non-null string with "SCRUBBED:". */
-    private static final DataScrubber MARKING_SCRUBBER =
-        text -> text == null ? null : "SCRUBBED:" + text;
+  /** Scrubber that prefixes every non-null string with "SCRUBBED:". */
+  private static final DataScrubber MARKING_SCRUBBER =
+      text -> text == null ? null : "SCRUBBED:" + text;
 
-    // -----------------------------------------------------------------------
-    // Recording PostingService stubs
-    // -----------------------------------------------------------------------
+  // -----------------------------------------------------------------------
+  // Recording PostingService stubs
+  // -----------------------------------------------------------------------
 
-    /** Records every call so tests can assert on interactions. */
-    private static class RecordingPostingService implements PostingService {
+  /** Records every call so tests can assert on interactions. */
+  private static class RecordingPostingService implements PostingService {
 
-        private final String serviceName;
-        private final DuplicateSearchResult duplicateResult;
+    private final String serviceName;
+    private final DuplicateSearchResult duplicateResult;
 
-        final List<ExceptionEvent> createIssueCalls   = new ArrayList<>();
-        final List<String>         commentIssueIds    = new ArrayList<>();
-        final List<ExceptionEvent> commentEventCalls  = new ArrayList<>();
+    final List<ExceptionEvent> createIssueCalls = new ArrayList<>();
+    final List<String> commentIssueIds = new ArrayList<>();
+    final List<ExceptionEvent> commentEventCalls = new ArrayList<>();
 
-        RecordingPostingService(String name, DuplicateSearchResult duplicateResult) {
-            this.serviceName    = name;
-            this.duplicateResult = duplicateResult;
-        }
-
-        @Override public String name() { return serviceName; }
-
-        @Override
-        public DuplicateSearchResult findDuplicate(ExceptionEvent event) {
-            return duplicateResult;
-        }
-
-        @Override
-        public PostingResult createIssue(ExceptionEvent event) {
-            createIssueCalls.add(event);
-            return PostingResult.success("NEW-1", "https://tracker/NEW-1");
-        }
-
-        @Override
-        public PostingResult commentOnIssue(String externalIssueId, ExceptionEvent event) {
-            commentIssueIds.add(externalIssueId);
-            commentEventCalls.add(event);
-            return PostingResult.success(externalIssueId, "https://tracker/" + externalIssueId);
-        }
+    RecordingPostingService(String name, DuplicateSearchResult duplicateResult) {
+      this.serviceName = name;
+      this.duplicateResult = duplicateResult;
     }
 
-    /** PostingService whose findDuplicate() throws an exception. */
-    private static class FailingPostingService implements PostingService {
-
-        private final String serviceName;
-        final List<String> callLog = new ArrayList<>();
-
-        FailingPostingService(String name) {
-            this.serviceName = name;
-        }
-
-        @Override public String name() { return serviceName; }
-
-        @Override
-        public DuplicateSearchResult findDuplicate(ExceptionEvent event) {
-            callLog.add("findDuplicate");
-            throw new RuntimeException("Network error from " + serviceName);
-        }
-
-        @Override
-        public PostingResult createIssue(ExceptionEvent event) {
-            callLog.add("createIssue");
-            return PostingResult.success("X-1", "https://tracker/X-1");
-        }
-
-        @Override
-        public PostingResult commentOnIssue(String externalIssueId, ExceptionEvent event) {
-            callLog.add("commentOnIssue");
-            return PostingResult.success(externalIssueId, "https://tracker/" + externalIssueId);
-        }
+    @Override
+    public String name() {
+      return serviceName;
     }
 
-    // -----------------------------------------------------------------------
-    // Helper
-    // -----------------------------------------------------------------------
-
-    private static ExceptionProcessor processor(List<PostingService> services) {
-        return new ExceptionProcessor(FIXED_FINGERPRINTER, PASSTHROUGH_SCRUBBER, services);
+    @Override
+    public DuplicateSearchResult findDuplicate(ExceptionEvent event) {
+      return duplicateResult;
     }
 
-    /** Calls process with pre-captured trace context (as Observarium now does eagerly). */
-    private static List<PostingResult> process(ExceptionProcessor proc, Throwable throwable,
-                                                Severity severity, Map<String, String> tags) {
-        return proc.process(throwable, severity, tags, "test-thread", null, null);
+    @Override
+    public PostingResult createIssue(ExceptionEvent event) {
+      createIssueCalls.add(event);
+      return PostingResult.success("NEW-1", "https://tracker/NEW-1");
     }
 
-    private static List<PostingResult> processWithTrace(ExceptionProcessor proc, Throwable throwable,
-                                                         Severity severity, Map<String, String> tags,
-                                                         String traceId, String spanId) {
-        return proc.process(throwable, severity, tags, "test-thread", traceId, spanId);
+    @Override
+    public PostingResult commentOnIssue(String externalIssueId, ExceptionEvent event) {
+      commentIssueIds.add(externalIssueId);
+      commentEventCalls.add(event);
+      return PostingResult.success(externalIssueId, "https://tracker/" + externalIssueId);
+    }
+  }
+
+  /** PostingService whose findDuplicate() throws an exception. */
+  private static class FailingPostingService implements PostingService {
+
+    private final String serviceName;
+    final List<String> callLog = new ArrayList<>();
+
+    FailingPostingService(String name) {
+      this.serviceName = name;
     }
 
-    // -----------------------------------------------------------------------
-    // Tests: routing (createIssue vs commentOnIssue)
-    // -----------------------------------------------------------------------
-
-    @Test
-    void noDuplicateFound_callsCreateIssue() {
-        RecordingPostingService service =
-            new RecordingPostingService("svc", DuplicateSearchResult.notFound());
-        ExceptionProcessor proc = processor(List.of(service));
-
-        List<PostingResult> results = process(proc, new RuntimeException("boom"), Severity.ERROR, Map.of());
-
-        assertEquals(1, results.size());
-        assertTrue(results.get(0).success());
-        assertEquals(1, service.createIssueCalls.size(), "createIssue must be called once");
-        assertEquals(0, service.commentIssueIds.size(), "commentOnIssue must not be called");
+    @Override
+    public String name() {
+      return serviceName;
     }
 
-    @Test
-    void duplicateFound_callsCommentOnIssueWithCorrectId() {
-        String existingId = "ISSUE-42";
-        RecordingPostingService service =
-            new RecordingPostingService("svc", DuplicateSearchResult.found(existingId, "https://t/42"));
-        ExceptionProcessor proc = processor(List.of(service));
-
-        process(proc, new RuntimeException("dup"), Severity.WARNING, Map.of());
-
-        assertEquals(0, service.createIssueCalls.size(), "createIssue must not be called");
-        assertEquals(1, service.commentIssueIds.size(), "commentOnIssue must be called once");
-        assertEquals(existingId, service.commentIssueIds.get(0),
-            "commentOnIssue must receive the existing issue id");
+    @Override
+    public DuplicateSearchResult findDuplicate(ExceptionEvent event) {
+      callLog.add("findDuplicate");
+      throw new RuntimeException("Network error from " + serviceName);
     }
 
-    // -----------------------------------------------------------------------
-    // Tests: multiple services
-    // -----------------------------------------------------------------------
-
-    @Test
-    void multiplePostingServices_allGetCalled() {
-        RecordingPostingService svc1 =
-            new RecordingPostingService("svc1", DuplicateSearchResult.notFound());
-        RecordingPostingService svc2 =
-            new RecordingPostingService("svc2", DuplicateSearchResult.notFound());
-
-        ExceptionProcessor proc = processor(List.of(svc1, svc2));
-        List<PostingResult> results = process(proc, new RuntimeException("multi"), Severity.ERROR, Map.of());
-
-        assertEquals(2, results.size(), "One result per posting service");
-        assertEquals(1, svc1.createIssueCalls.size(), "svc1 must receive createIssue");
-        assertEquals(1, svc2.createIssueCalls.size(), "svc2 must receive createIssue");
+    @Override
+    public PostingResult createIssue(ExceptionEvent event) {
+      callLog.add("createIssue");
+      return PostingResult.success("X-1", "https://tracker/X-1");
     }
 
-    @Test
-    void failingService_doesNotPreventOtherServicesFromRunning() {
-        FailingPostingService failingSvc = new FailingPostingService("failing");
-        RecordingPostingService goodSvc =
-            new RecordingPostingService("good", DuplicateSearchResult.notFound());
-
-        ExceptionProcessor proc = processor(List.of(failingSvc, goodSvc));
-        List<PostingResult> results = process(proc, new RuntimeException("oops"), Severity.ERROR, Map.of());
-
-        assertEquals(2, results.size(), "Both services must produce a result");
-
-        PostingResult failResult = results.get(0);
-        assertFalse(failResult.success(), "Failed service result must be unsuccessful");
-        assertTrue(failResult.errorMessage().contains("failing"),
-            "Error message must reference the failing service name");
-
-        PostingResult goodResult = results.get(1);
-        assertTrue(goodResult.success(), "Good service must still succeed");
-        assertEquals(1, goodSvc.createIssueCalls.size(), "Good service must still be called");
+    @Override
+    public PostingResult commentOnIssue(String externalIssueId, ExceptionEvent event) {
+      callLog.add("commentOnIssue");
+      return PostingResult.success(externalIssueId, "https://tracker/" + externalIssueId);
     }
+  }
 
-    // -----------------------------------------------------------------------
-    // Tests: event construction
-    // -----------------------------------------------------------------------
+  // -----------------------------------------------------------------------
+  // Helper
+  // -----------------------------------------------------------------------
 
-    @Test
-    void event_containsCorrectFingerprint() {
-        RecordingPostingService service =
-            new RecordingPostingService("svc", DuplicateSearchResult.notFound());
-        ExceptionProcessor proc = processor(List.of(service));
+  private static ExceptionProcessor processor(List<PostingService> services) {
+    return new ExceptionProcessor(FIXED_FINGERPRINTER, PASSTHROUGH_SCRUBBER, services);
+  }
 
-        process(proc, new RuntimeException("x"), Severity.ERROR, Map.of());
+  /** Calls process with pre-captured trace context (as Observarium now does eagerly). */
+  private static List<PostingResult> process(
+      ExceptionProcessor proc, Throwable throwable, Severity severity, Map<String, String> tags) {
+    return proc.process(throwable, severity, tags, "test-thread", null, null);
+  }
 
-        ExceptionEvent event = service.createIssueCalls.get(0);
-        assertEquals("a".repeat(64), event.fingerprint());
-    }
+  private static List<PostingResult> processWithTrace(
+      ExceptionProcessor proc,
+      Throwable throwable,
+      Severity severity,
+      Map<String, String> tags,
+      String traceId,
+      String spanId) {
+    return proc.process(throwable, severity, tags, "test-thread", traceId, spanId);
+  }
 
-    @Test
-    void event_messageIsScrubbedBeforeStorage() {
-        RecordingPostingService service =
-            new RecordingPostingService("svc", DuplicateSearchResult.notFound());
-        ExceptionProcessor proc = new ExceptionProcessor(
-            FIXED_FINGERPRINTER, MARKING_SCRUBBER, List.of(service));
+  // -----------------------------------------------------------------------
+  // Tests: routing (createIssue vs commentOnIssue)
+  // -----------------------------------------------------------------------
 
-        process(proc, new RuntimeException("sensitive data"), Severity.ERROR, Map.of());
+  @Test
+  void noDuplicateFound_callsCreateIssue() {
+    RecordingPostingService service =
+        new RecordingPostingService("svc", DuplicateSearchResult.notFound());
+    ExceptionProcessor proc = processor(List.of(service));
 
-        ExceptionEvent event = service.createIssueCalls.get(0);
-        assertTrue(event.message().startsWith("SCRUBBED:"),
-            "Message must be passed through the scrubber");
-    }
+    List<PostingResult> results =
+        process(proc, new RuntimeException("boom"), Severity.ERROR, Map.of());
 
-    @Test
-    void event_traceContextIsPopulated() {
-        RecordingPostingService service =
-            new RecordingPostingService("svc", DuplicateSearchResult.notFound());
-        ExceptionProcessor proc = new ExceptionProcessor(
-            FIXED_FINGERPRINTER, PASSTHROUGH_SCRUBBER, List.of(service));
+    assertEquals(1, results.size());
+    assertTrue(results.get(0).success());
+    assertEquals(1, service.createIssueCalls.size(), "createIssue must be called once");
+    assertEquals(0, service.commentIssueIds.size(), "commentOnIssue must not be called");
+  }
 
-        processWithTrace(proc, new RuntimeException("traced"), Severity.INFO, Map.of(),
-                "trace-abc", "span-xyz");
+  @Test
+  void duplicateFound_callsCommentOnIssueWithCorrectId() {
+    String existingId = "ISSUE-42";
+    RecordingPostingService service =
+        new RecordingPostingService("svc", DuplicateSearchResult.found(existingId, "https://t/42"));
+    ExceptionProcessor proc = processor(List.of(service));
 
-        ExceptionEvent event = service.createIssueCalls.get(0);
-        assertEquals("trace-abc", event.traceId());
-        assertEquals("span-xyz",  event.spanId());
-    }
+    process(proc, new RuntimeException("dup"), Severity.WARNING, Map.of());
 
-    @Test
-    void event_severityIsPreserved() {
-        RecordingPostingService service =
-            new RecordingPostingService("svc", DuplicateSearchResult.notFound());
-        ExceptionProcessor proc = processor(List.of(service));
+    assertEquals(0, service.createIssueCalls.size(), "createIssue must not be called");
+    assertEquals(1, service.commentIssueIds.size(), "commentOnIssue must be called once");
+    assertEquals(
+        existingId,
+        service.commentIssueIds.get(0),
+        "commentOnIssue must receive the existing issue id");
+  }
 
-        process(proc, new RuntimeException("warn"), Severity.WARNING, Map.of());
+  // -----------------------------------------------------------------------
+  // Tests: multiple services
+  // -----------------------------------------------------------------------
 
-        ExceptionEvent event = service.createIssueCalls.get(0);
-        assertEquals(Severity.WARNING, event.severity());
-    }
+  @Test
+  void multiplePostingServices_allGetCalled() {
+    RecordingPostingService svc1 =
+        new RecordingPostingService("svc1", DuplicateSearchResult.notFound());
+    RecordingPostingService svc2 =
+        new RecordingPostingService("svc2", DuplicateSearchResult.notFound());
 
-    @Test
-    void event_tagsArePreserved() {
-        RecordingPostingService service =
-            new RecordingPostingService("svc", DuplicateSearchResult.notFound());
-        ExceptionProcessor proc = processor(List.of(service));
+    ExceptionProcessor proc = processor(List.of(svc1, svc2));
+    List<PostingResult> results =
+        process(proc, new RuntimeException("multi"), Severity.ERROR, Map.of());
 
-        Map<String, String> tags = Map.of("env", "production", "region", "us-east-1");
-        process(proc, new RuntimeException("tagged"), Severity.ERROR, tags);
+    assertEquals(2, results.size(), "One result per posting service");
+    assertEquals(1, svc1.createIssueCalls.size(), "svc1 must receive createIssue");
+    assertEquals(1, svc2.createIssueCalls.size(), "svc2 must receive createIssue");
+  }
 
-        ExceptionEvent event = service.createIssueCalls.get(0);
-        assertEquals("production", event.tags().get("env"));
-        assertEquals("us-east-1",  event.tags().get("region"));
-    }
+  @Test
+  void failingService_doesNotPreventOtherServicesFromRunning() {
+    FailingPostingService failingSvc = new FailingPostingService("failing");
+    RecordingPostingService goodSvc =
+        new RecordingPostingService("good", DuplicateSearchResult.notFound());
 
-    @Test
-    void event_nullTagsDefaultToEmptyMap() {
-        RecordingPostingService service =
-            new RecordingPostingService("svc", DuplicateSearchResult.notFound());
-        ExceptionProcessor proc = processor(List.of(service));
+    ExceptionProcessor proc = processor(List.of(failingSvc, goodSvc));
+    List<PostingResult> results =
+        process(proc, new RuntimeException("oops"), Severity.ERROR, Map.of());
 
-        process(proc, new RuntimeException("no tags"), Severity.ERROR, null);
+    assertEquals(2, results.size(), "Both services must produce a result");
 
-        ExceptionEvent event = service.createIssueCalls.get(0);
-        assertNotNull(event.tags());
-        assertTrue(event.tags().isEmpty());
-    }
+    PostingResult failResult = results.get(0);
+    assertFalse(failResult.success(), "Failed service result must be unsuccessful");
+    assertTrue(
+        failResult.errorMessage().contains("failing"),
+        "Error message must reference the failing service name");
 
-    @Test
-    void event_exceptionClassNameIsFullyQualified() {
-        RecordingPostingService service =
-            new RecordingPostingService("svc", DuplicateSearchResult.notFound());
-        ExceptionProcessor proc = processor(List.of(service));
+    PostingResult goodResult = results.get(1);
+    assertTrue(goodResult.success(), "Good service must still succeed");
+    assertEquals(1, goodSvc.createIssueCalls.size(), "Good service must still be called");
+  }
 
-        process(proc, new IllegalArgumentException("bad"), Severity.ERROR, Map.of());
+  // -----------------------------------------------------------------------
+  // Tests: event construction
+  // -----------------------------------------------------------------------
 
-        ExceptionEvent event = service.createIssueCalls.get(0);
-        assertEquals("java.lang.IllegalArgumentException", event.exceptionClass());
-    }
+  @Test
+  void event_containsCorrectFingerprint() {
+    RecordingPostingService service =
+        new RecordingPostingService("svc", DuplicateSearchResult.notFound());
+    ExceptionProcessor proc = processor(List.of(service));
 
-    @Test
-    void noPostingServices_returnsEmptyResultList() {
-        ExceptionProcessor proc = processor(List.of());
-        List<PostingResult> results = process(proc, new RuntimeException("alone"), Severity.ERROR, Map.of());
-        assertNotNull(results);
-        assertTrue(results.isEmpty());
-    }
+    process(proc, new RuntimeException("x"), Severity.ERROR, Map.of());
+
+    ExceptionEvent event = service.createIssueCalls.get(0);
+    assertEquals("a".repeat(64), event.fingerprint());
+  }
+
+  @Test
+  void event_messageIsScrubbedBeforeStorage() {
+    RecordingPostingService service =
+        new RecordingPostingService("svc", DuplicateSearchResult.notFound());
+    ExceptionProcessor proc =
+        new ExceptionProcessor(FIXED_FINGERPRINTER, MARKING_SCRUBBER, List.of(service));
+
+    process(proc, new RuntimeException("sensitive data"), Severity.ERROR, Map.of());
+
+    ExceptionEvent event = service.createIssueCalls.get(0);
+    assertTrue(
+        event.message().startsWith("SCRUBBED:"), "Message must be passed through the scrubber");
+  }
+
+  @Test
+  void event_traceContextIsPopulated() {
+    RecordingPostingService service =
+        new RecordingPostingService("svc", DuplicateSearchResult.notFound());
+    ExceptionProcessor proc =
+        new ExceptionProcessor(FIXED_FINGERPRINTER, PASSTHROUGH_SCRUBBER, List.of(service));
+
+    processWithTrace(
+        proc, new RuntimeException("traced"), Severity.INFO, Map.of(), "trace-abc", "span-xyz");
+
+    ExceptionEvent event = service.createIssueCalls.get(0);
+    assertEquals("trace-abc", event.traceId());
+    assertEquals("span-xyz", event.spanId());
+  }
+
+  @Test
+  void event_severityIsPreserved() {
+    RecordingPostingService service =
+        new RecordingPostingService("svc", DuplicateSearchResult.notFound());
+    ExceptionProcessor proc = processor(List.of(service));
+
+    process(proc, new RuntimeException("warn"), Severity.WARNING, Map.of());
+
+    ExceptionEvent event = service.createIssueCalls.get(0);
+    assertEquals(Severity.WARNING, event.severity());
+  }
+
+  @Test
+  void event_tagsArePreserved() {
+    RecordingPostingService service =
+        new RecordingPostingService("svc", DuplicateSearchResult.notFound());
+    ExceptionProcessor proc = processor(List.of(service));
+
+    Map<String, String> tags = Map.of("env", "production", "region", "us-east-1");
+    process(proc, new RuntimeException("tagged"), Severity.ERROR, tags);
+
+    ExceptionEvent event = service.createIssueCalls.get(0);
+    assertEquals("production", event.tags().get("env"));
+    assertEquals("us-east-1", event.tags().get("region"));
+  }
+
+  @Test
+  void event_nullTagsDefaultToEmptyMap() {
+    RecordingPostingService service =
+        new RecordingPostingService("svc", DuplicateSearchResult.notFound());
+    ExceptionProcessor proc = processor(List.of(service));
+
+    process(proc, new RuntimeException("no tags"), Severity.ERROR, null);
+
+    ExceptionEvent event = service.createIssueCalls.get(0);
+    assertNotNull(event.tags());
+    assertTrue(event.tags().isEmpty());
+  }
+
+  @Test
+  void event_exceptionClassNameIsFullyQualified() {
+    RecordingPostingService service =
+        new RecordingPostingService("svc", DuplicateSearchResult.notFound());
+    ExceptionProcessor proc = processor(List.of(service));
+
+    process(proc, new IllegalArgumentException("bad"), Severity.ERROR, Map.of());
+
+    ExceptionEvent event = service.createIssueCalls.get(0);
+    assertEquals("java.lang.IllegalArgumentException", event.exceptionClass());
+  }
+
+  @Test
+  void noPostingServices_returnsEmptyResultList() {
+    ExceptionProcessor proc = processor(List.of());
+    List<PostingResult> results =
+        process(proc, new RuntimeException("alone"), Severity.ERROR, Map.of());
+    assertNotNull(results);
+    assertTrue(results.isEmpty());
+  }
 }
