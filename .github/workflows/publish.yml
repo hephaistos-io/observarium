@@ -1,9 +1,8 @@
 name: Publish to Maven Central
 
 on:
-  push:
-    tags:
-      - 'v*'
+  release:
+    types: [published]
   workflow_dispatch:
     inputs:
       dry_run:
@@ -29,9 +28,10 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Validate tag matches build version
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: github.event_name == 'release'
         run: |
-          TAG_VERSION="${GITHUB_REF#refs/tags/v}"
+          TAG_VERSION="${{ github.event.release.tag_name }}"
+          TAG_VERSION="${TAG_VERSION#v}"
           BUILD_VERSION=$(grep "version = " build.gradle | head -1 | sed "s/.*version = '\\(.*\\)'/\\1/")
           if [ "$TAG_VERSION" != "$BUILD_VERSION" ]; then
             echo "Tag version ($TAG_VERSION) does not match build.gradle version ($BUILD_VERSION)"
@@ -46,7 +46,7 @@ jobs:
         run: ./gradlew publishToMavenLocal
 
       - name: Publish to Maven Central
-        if: github.event.inputs.dry_run != 'true' && startsWith(github.ref, 'refs/tags/v')
+        if: github.event.inputs.dry_run != 'true' && github.event_name == 'release'
         env:
           ORG_GRADLE_PROJECT_mavenCentralUsername: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           ORG_GRADLE_PROJECT_mavenCentralPassword: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
