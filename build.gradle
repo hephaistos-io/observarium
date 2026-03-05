@@ -1,3 +1,4 @@
+import groovy.xml.XmlSlurper
 import com.vanniktech.maven.publish.JavaLibrary
 import com.vanniktech.maven.publish.JavadocJar
 import com.vanniktech.maven.publish.SourcesJar
@@ -50,6 +51,43 @@ subprojects {
                 limit {
                     minimum = 0.80
                 }
+            }
+        }
+    }
+
+    tasks.register('coverageReport') {
+        group = 'verification'
+        description = 'Prints coverage stats and fails if any metric is below 80%.'
+        dependsOn jacocoTestReport
+        doLast {
+            def xmlFile = file("${buildDir}/reports/jacoco/test/jacocoTestReport.xml")
+            if (!xmlFile.exists()) {
+                println "No JaCoCo report found for ${project.name}"
+                return
+            }
+            def parser = new XmlSlurper()
+            parser.setFeature("http://apache.org/xml/features/disallow-doctype-decl", false)
+            parser.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
+            def report = parser.parse(xmlFile)
+            def counters = report.counter.collectEntries { [(it.@type.text()): it] }
+
+            println "\n=== ${project.name} coverage ==="
+            def failed = false
+            ['LINE', 'BRANCH', 'METHOD', 'CLASS'].each { type ->
+                def counter = counters[type]
+                if (counter) {
+                    def missed = counter.@missed.toInteger()
+                    def covered = counter.@covered.toInteger()
+                    def total = missed + covered
+                    def pct = total > 0 ? (covered * 100.0 / total) : 0.0
+                    def status = pct >= 80.0 ? 'PASS' : 'FAIL'
+                    if (pct < 80.0) failed = true
+                    println String.format("  %-8s %4d / %-4d  %5.1f%%  [%s]", type, covered, total, pct, status)
+                }
+            }
+            println ""
+            if (failed) {
+                throw new GradleException("${project.name}: coverage below 80% threshold")
             }
         }
     }
