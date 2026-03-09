@@ -31,8 +31,17 @@ public class GitLabAutoConfiguration {
   @ConditionalOnMissingBean(name = "gitLabPostingService")
   public PostingService gitLabPostingService(ObservariumProperties properties) {
     ObservariumProperties.GitLab gitlab = properties.getGitlab();
+    requireProperty(gitlab.getBaseUrl(), "observarium.gitlab.base-url");
+    requireProperty(gitlab.getPrivateToken(), "observarium.gitlab.private-token");
+    requireProperty(gitlab.getProjectId(), "observarium.gitlab.project-id");
     GitLabConfig config =
         new GitLabConfig(gitlab.getBaseUrl(), gitlab.getPrivateToken(), gitlab.getProjectId());
     return new GitLabPostingService(config);
+  }
+
+  private void requireProperty(String value, String propertyName) {
+    if (value == null || value.isBlank()) {
+      throw new IllegalStateException(propertyName + " is required when GitLab posting is enabled");
+    }
   }
 }

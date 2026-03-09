@@ -31,6 +31,9 @@ public class EmailAutoConfiguration {
   @ConditionalOnMissingBean(name = "emailPostingService")
   public PostingService emailPostingService(ObservariumProperties properties) {
     ObservariumProperties.Email email = properties.getEmail();
+    requireProperty(email.getSmtpHost(), "observarium.email.smtp-host");
+    requireProperty(email.getFrom(), "observarium.email.from");
+    requireProperty(email.getTo(), "observarium.email.to");
     EmailConfig config =
         new EmailConfig(
             email.getSmtpHost(),
@@ -41,5 +44,11 @@ public class EmailAutoConfiguration {
             email.getPassword(),
             email.isStartTls());
     return new EmailPostingService(config);
+  }
+
+  private void requireProperty(String value, String propertyName) {
+    if (value == null || value.isBlank()) {
+      throw new IllegalStateException(propertyName + " is required when email posting is enabled");
+    }
   }
 }
