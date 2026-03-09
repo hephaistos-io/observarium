@@ -123,11 +123,7 @@ subprojects {
         }
     }
 
-    // Wire coverage verification into check, except for modules that lack
-    // a test framework capable of exercising them (e.g. Quarkus CDI).
-    if (project.name != 'observarium-quarkus') {
-        check.dependsOn jacocoTestCoverageVerification
-    }
+    check.dependsOn jacocoTestCoverageVerification
 
     mavenPublishing {
         publishToMavenCentral()

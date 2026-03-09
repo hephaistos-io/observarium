@@ -8,5 +8,14 @@ dependencies {
     compileOnly project(':observarium-gitlab')
     compileOnly project(':observarium-email')
 
-    testImplementation 'ch.qos.logback:logback-classic:1.5.16'
+    testImplementation 'ch.qos.logback:logback-classic:1.5.32'
+    testImplementation 'org.mockito:mockito-core:5.14.2'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.14.2'
+    testImplementation 'org.assertj:assertj-core:3.26.3'
+    testImplementation 'jakarta.ws.rs:jakarta.ws.rs-api:4.0.0'
+    testImplementation 'org.jboss.resteasy:resteasy-core:6.2.12.Final'
+    testImplementation project(':observarium-github')
+    testImplementation project(':observarium-jira')
+    testImplementation project(':observarium-gitlab')
+    testImplementation project(':observarium-email')
 }

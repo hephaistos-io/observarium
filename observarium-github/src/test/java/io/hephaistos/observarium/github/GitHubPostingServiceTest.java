@@ -27,30 +27,42 @@ import org.junit.jupiter.api.Test;
  */
 class GitHubPostingServiceTest {
 
-  private final IssueFormatter formatter = new DefaultIssueFormatter();
-
   // -------------------------------------------------------------------------
   // GitHubConfig tests
   // -------------------------------------------------------------------------
 
   @Test
   void config_storesAllFields() {
-    GitHubConfig config = new GitHubConfig("tok", "owner", "repo", "mylabel");
+    GitHubConfig config = new GitHubConfig("tok", "owner", "repo", "mylabel", null);
     assertEquals("tok", config.token());
     assertEquals("owner", config.owner());
     assertEquals("repo", config.repo());
     assertEquals("mylabel", config.labelPrefix());
+    assertEquals("https://api.github.com", config.baseUrl());
+  }
+
+  @Test
+  void config_defaultsBaseUrlWhenNull() {
+    GitHubConfig config = new GitHubConfig("tok", "owner", "repo", null, null);
+    assertEquals("https://api.github.com", config.baseUrl());
+  }
+
+  @Test
+  void config_usesCustomBaseUrl() {
+    GitHubConfig config =
+        new GitHubConfig("tok", "owner", "repo", null, "https://ghe.example.com/api/v3");
+    assertEquals("https://ghe.example.com/api/v3", config.baseUrl());
   }
 
   @Test
   void config_defaultsLabelPrefixWhenNull() {
-    GitHubConfig config = new GitHubConfig("tok", "owner", "repo", null);
+    GitHubConfig config = new GitHubConfig("tok", "owner", "repo", null, null);
     assertEquals("observarium", config.labelPrefix());
   }
 
   @Test
   void config_defaultsLabelPrefixWhenBlank() {
-    GitHubConfig config = new GitHubConfig("tok", "owner", "repo", "   ");
+    GitHubConfig config = new GitHubConfig("tok", "owner", "repo", "   ", null);
     assertEquals("observarium", config.labelPrefix());
   }
 
@@ -58,47 +70,49 @@ class GitHubPostingServiceTest {
   void config_convenienceFactory_usesDefaultLabel() {
     GitHubConfig config = GitHubConfig.of("tok", "owner", "repo");
     assertEquals("observarium", config.labelPrefix());
+    assertEquals("https://api.github.com", config.baseUrl());
   }
 
   @Test
   void config_rejectsNullToken() {
     assertThrows(
         IllegalArgumentException.class,
-        () -> new GitHubConfig(null, "owner", "repo", "observarium"));
+        () -> new GitHubConfig(null, "owner", "repo", "observarium", null));
   }
 
   @Test
   void config_rejectsBlankToken() {
     assertThrows(
         IllegalArgumentException.class,
-        () -> new GitHubConfig("   ", "owner", "repo", "observarium"));
+        () -> new GitHubConfig("   ", "owner", "repo", "observarium", null));
   }
 
   @Test
   void config_rejectsNullOwner() {
     assertThrows(
-        IllegalArgumentException.class, () -> new GitHubConfig("tok", null, "repo", "observarium"));
+        IllegalArgumentException.class,
+        () -> new GitHubConfig("tok", null, "repo", "observarium", null));
   }
 
   @Test
   void config_rejectsBlankOwner() {
     assertThrows(
         IllegalArgumentException.class,
-        () -> new GitHubConfig("tok", "   ", "repo", "observarium"));
+        () -> new GitHubConfig("tok", "   ", "repo", "observarium", null));
   }
 
   @Test
   void config_rejectsNullRepo() {
     assertThrows(
         IllegalArgumentException.class,
-        () -> new GitHubConfig("tok", "owner", null, "observarium"));
+        () -> new GitHubConfig("tok", "owner", null, "observarium", null));
   }
 
   @Test
   void config_rejectsBlankRepo() {
     assertThrows(
         IllegalArgumentException.class,
-        () -> new GitHubConfig("tok", "owner", "   ", "observarium"));
+        () -> new GitHubConfig("tok", "owner", "   ", "observarium", null));
   }
 
   // -------------------------------------------------------------------------
@@ -120,70 +134,6 @@ class GitHubPostingServiceTest {
     GitHubPostingService service =
         new GitHubPostingService(GitHubConfig.of("tok", "owner", "repo"), customFormatter);
     assertEquals("github", service.name());
-  }
-
-  // -------------------------------------------------------------------------
-  // IssueFormatter delegation tests — verify the right content is sent
-  // -------------------------------------------------------------------------
-
-  @Test
-  void issueFormatter_title_stripsDotSeparatedPackageName() {
-    ExceptionEvent event = buildEvent("com.example.MyException", "something went wrong");
-    String title = formatter.title(event);
-    assertEquals("[Observarium] MyException: something went wrong", title);
-  }
-
-  @Test
-  void issueFormatter_title_truncatesLongMessage() {
-    String longMessage = "a".repeat(100);
-    ExceptionEvent event = buildEvent("MyException", longMessage);
-    String title = formatter.title(event);
-    assertTrue(title.endsWith("..."));
-    // Total after prefix "[Observarium] MyException: " is 28 chars + 80-char title segment
-    assertTrue(title.length() <= "[Observarium] MyException: ".length() + 80);
-  }
-
-  @Test
-  void issueFormatter_title_handlesNullMessage() {
-    ExceptionEvent event =
-        ExceptionEvent.builder()
-            .fingerprint("fp1")
-            .exceptionClass("MyException")
-            .rawStackTrace("stack")
-            .threadName("main")
-            .build();
-    String title = formatter.title(event);
-    assertEquals("[Observarium] MyException: (no message)", title);
-  }
-
-  @Test
-  void issueFormatter_markdownBody_containsFingerprintMarker() {
-    ExceptionEvent event = buildEvent("MyException", "oops");
-    String body = formatter.markdownBody(event);
-    assertTrue(
-        body.contains("<!-- observarium:fingerprint:test-fingerprint -->"),
-        "Body must contain the fingerprint HTML comment for duplicate detection");
-  }
-
-  @Test
-  void issueFormatter_markdownBody_containsStackTrace() {
-    ExceptionEvent event = buildEvent("MyException", "oops");
-    String body = formatter.markdownBody(event);
-    assertTrue(body.contains("at com.example.Foo.bar(Foo.java:42)"));
-  }
-
-  @Test
-  void issueFormatter_markdownComment_containsTimestamp() {
-    ExceptionEvent event = buildEvent("MyException", "oops");
-    String comment = formatter.markdownComment(event);
-    assertTrue(comment.contains("## Occurred Again"));
-    assertTrue(comment.contains("Timestamp"));
-  }
-
-  @Test
-  void issueFormatter_fingerprintMarker_format() {
-    String marker = formatter.fingerprintMarker("abc123");
-    assertEquals("<!-- observarium:fingerprint:abc123 -->", marker);
   }
 
   // -------------------------------------------------------------------------

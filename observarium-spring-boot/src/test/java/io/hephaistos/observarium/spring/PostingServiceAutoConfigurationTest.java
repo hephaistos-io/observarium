@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.hephaistos.observarium.posting.PostingService;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.BeanCreationException;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
@@ -65,6 +66,57 @@ class PostingServiceAutoConfigurationTest {
             context -> {
               ObservariumProperties props = context.getBean(ObservariumProperties.class);
               assertThat(props.getGithub().getLabelPrefix()).isEqualTo("observarium");
+            });
+  }
+
+  @Test
+  void githubContextFailsWhenEnabledButTokenMissing() {
+    githubRunner
+        .withPropertyValues(
+            "observarium.github.enabled=true",
+            "observarium.github.owner=acme",
+            "observarium.github.repo=backend")
+        .run(
+            context -> {
+              assertThat(context).hasFailed();
+              assertThat(context.getStartupFailure())
+                  .isInstanceOf(BeanCreationException.class)
+                  .hasRootCauseInstanceOf(IllegalArgumentException.class)
+                  .hasRootCauseMessage("GitHub token must not be null or blank");
+            });
+  }
+
+  @Test
+  void githubContextFailsWhenEnabledButOwnerMissing() {
+    githubRunner
+        .withPropertyValues(
+            "observarium.github.enabled=true",
+            "observarium.github.token=ghp_test",
+            "observarium.github.repo=backend")
+        .run(
+            context -> {
+              assertThat(context).hasFailed();
+              assertThat(context.getStartupFailure())
+                  .isInstanceOf(BeanCreationException.class)
+                  .hasRootCauseInstanceOf(IllegalArgumentException.class)
+                  .hasRootCauseMessage("GitHub owner must not be null or blank");
+            });
+  }
+
+  @Test
+  void githubContextFailsWhenEnabledButRepoMissing() {
+    githubRunner
+        .withPropertyValues(
+            "observarium.github.enabled=true",
+            "observarium.github.token=ghp_test",
+            "observarium.github.owner=acme")
+        .run(
+            context -> {
+              assertThat(context).hasFailed();
+              assertThat(context.getStartupFailure())
+                  .isInstanceOf(BeanCreationException.class)
+                  .hasRootCauseInstanceOf(IllegalArgumentException.class)
+                  .hasRootCauseMessage("GitHub repo must not be null or blank");
             });
   }
 
@@ -137,6 +189,78 @@ class PostingServiceAutoConfigurationTest {
   }
 
   @Test
+  void jiraContextFailsWhenEnabledButBaseUrlMissing() {
+    jiraRunner
+        .withPropertyValues(
+            "observarium.jira.enabled=true",
+            "observarium.jira.username=user@acme.com",
+            "observarium.jira.api-token=jira-secret",
+            "observarium.jira.project-key=OBS")
+        .run(
+            context -> {
+              assertThat(context).hasFailed();
+              assertThat(context.getStartupFailure())
+                  .isInstanceOf(BeanCreationException.class)
+                  .hasRootCauseInstanceOf(IllegalArgumentException.class)
+                  .hasRootCauseMessage("JiraConfig.baseUrl must not be blank");
+            });
+  }
+
+  @Test
+  void jiraContextFailsWhenEnabledButUsernameMissing() {
+    jiraRunner
+        .withPropertyValues(
+            "observarium.jira.enabled=true",
+            "observarium.jira.base-url=https://acme.atlassian.net",
+            "observarium.jira.api-token=jira-secret",
+            "observarium.jira.project-key=OBS")
+        .run(
+            context -> {
+              assertThat(context).hasFailed();
+              assertThat(context.getStartupFailure())
+                  .isInstanceOf(BeanCreationException.class)
+                  .hasRootCauseInstanceOf(IllegalArgumentException.class)
+                  .hasRootCauseMessage("JiraConfig.username must not be blank");
+            });
+  }
+
+  @Test
+  void jiraContextFailsWhenEnabledButApiTokenMissing() {
+    jiraRunner
+        .withPropertyValues(
+            "observarium.jira.enabled=true",
+            "observarium.jira.base-url=https://acme.atlassian.net",
+            "observarium.jira.username=user@acme.com",
+            "observarium.jira.project-key=OBS")
+        .run(
+            context -> {
+              assertThat(context).hasFailed();
+              assertThat(context.getStartupFailure())
+                  .isInstanceOf(BeanCreationException.class)
+                  .hasRootCauseInstanceOf(IllegalArgumentException.class)
+                  .hasRootCauseMessage("JiraConfig.apiToken must not be blank");
+            });
+  }
+
+  @Test
+  void jiraContextFailsWhenEnabledButProjectKeyMissing() {
+    jiraRunner
+        .withPropertyValues(
+            "observarium.jira.enabled=true",
+            "observarium.jira.base-url=https://acme.atlassian.net",
+            "observarium.jira.username=user@acme.com",
+            "observarium.jira.api-token=jira-secret")
+        .run(
+            context -> {
+              assertThat(context).hasFailed();
+              assertThat(context.getStartupFailure())
+                  .isInstanceOf(BeanCreationException.class)
+                  .hasRootCauseInstanceOf(IllegalArgumentException.class)
+                  .hasRootCauseMessage("JiraConfig.projectKey must not be blank");
+            });
+  }
+
+  @Test
   void jiraUserDefinedBeanTakesPrecedence() {
     PostingService customService = mockPostingService("custom-jira");
     jiraRunner
@@ -183,6 +307,61 @@ class PostingServiceAutoConfigurationTest {
               assertThat(context).hasBean("gitLabPostingService");
               assertThat(context.getBean("gitLabPostingService"))
                   .isInstanceOf(PostingService.class);
+            });
+  }
+
+  @Test
+  void gitlabContextFailsWhenEnabledButBaseUrlMissing() {
+    gitlabRunner
+        .withPropertyValues(
+            "observarium.gitlab.enabled=true",
+            "observarium.gitlab.private-token=glpat-secret",
+            "observarium.gitlab.project-id=42")
+        .run(
+            context -> {
+              assertThat(context).hasFailed();
+              assertThat(context.getStartupFailure())
+                  .isInstanceOf(BeanCreationException.class)
+                  .hasRootCauseInstanceOf(IllegalStateException.class)
+                  .hasRootCauseMessage(
+                      "observarium.gitlab.base-url is required when GitLab posting is enabled");
+            });
+  }
+
+  @Test
+  void gitlabContextFailsWhenEnabledButPrivateTokenMissing() {
+    gitlabRunner
+        .withPropertyValues(
+            "observarium.gitlab.enabled=true",
+            "observarium.gitlab.base-url=https://gitlab.com",
+            "observarium.gitlab.project-id=42")
+        .run(
+            context -> {
+              assertThat(context).hasFailed();
+              assertThat(context.getStartupFailure())
+                  .isInstanceOf(BeanCreationException.class)
+                  .hasRootCauseInstanceOf(IllegalStateException.class)
+                  .hasRootCauseMessage(
+                      "observarium.gitlab.private-token is required when GitLab posting is"
+                          + " enabled");
+            });
+  }
+
+  @Test
+  void gitlabContextFailsWhenEnabledButProjectIdMissing() {
+    gitlabRunner
+        .withPropertyValues(
+            "observarium.gitlab.enabled=true",
+            "observarium.gitlab.base-url=https://gitlab.com",
+            "observarium.gitlab.private-token=glpat-secret")
+        .run(
+            context -> {
+              assertThat(context).hasFailed();
+              assertThat(context.getStartupFailure())
+                  .isInstanceOf(BeanCreationException.class)
+                  .hasRootCauseInstanceOf(IllegalStateException.class)
+                  .hasRootCauseMessage(
+                      "observarium.gitlab.project-id is required when GitLab posting is enabled");
             });
   }
 
@@ -256,6 +435,60 @@ class PostingServiceAutoConfigurationTest {
   }
 
   @Test
+  void emailContextFailsWhenEnabledButSmtpHostMissing() {
+    emailRunner
+        .withPropertyValues(
+            "observarium.email.enabled=true",
+            "observarium.email.from=alerts@example.com",
+            "observarium.email.to=team@example.com")
+        .run(
+            context -> {
+              assertThat(context).hasFailed();
+              assertThat(context.getStartupFailure())
+                  .isInstanceOf(BeanCreationException.class)
+                  .hasRootCauseInstanceOf(IllegalStateException.class)
+                  .hasRootCauseMessage(
+                      "observarium.email.smtp-host is required when email posting is enabled");
+            });
+  }
+
+  @Test
+  void emailContextFailsWhenEnabledButFromMissing() {
+    emailRunner
+        .withPropertyValues(
+            "observarium.email.enabled=true",
+            "observarium.email.smtp-host=smtp.example.com",
+            "observarium.email.to=team@example.com")
+        .run(
+            context -> {
+              assertThat(context).hasFailed();
+              assertThat(context.getStartupFailure())
+                  .isInstanceOf(BeanCreationException.class)
+                  .hasRootCauseInstanceOf(IllegalStateException.class)
+                  .hasRootCauseMessage(
+                      "observarium.email.from is required when email posting is enabled");
+            });
+  }
+
+  @Test
+  void emailContextFailsWhenEnabledButToMissing() {
+    emailRunner
+        .withPropertyValues(
+            "observarium.email.enabled=true",
+            "observarium.email.smtp-host=smtp.example.com",
+            "observarium.email.from=alerts@example.com")
+        .run(
+            context -> {
+              assertThat(context).hasFailed();
+              assertThat(context.getStartupFailure())
+                  .isInstanceOf(BeanCreationException.class)
+                  .hasRootCauseInstanceOf(IllegalStateException.class)
+                  .hasRootCauseMessage(
+                      "observarium.email.to is required when email posting is enabled");
+            });
+  }
+
+  @Test
   void emailUserDefinedBeanTakesPrecedence() {
     PostingService customService = mockPostingService("custom-email");
     emailRunner
@@ -279,7 +512,7 @@ class PostingServiceAutoConfigurationTest {
    * dependency in context runner lambdas, which can cause serialisation issues in some Spring Boot
    * test infrastructure.
    */
-  private static PostingService mockPostingService(String name) {
+  private PostingService mockPostingService(String name) {
     return new PostingService() {
       @Override
       public String name() {

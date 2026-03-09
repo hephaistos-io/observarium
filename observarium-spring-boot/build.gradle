@@ -11,7 +11,8 @@ dependencies {
     compileOnly project(':observarium-email')
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test:3.4.3'
-    testImplementation 'ch.qos.logback:logback-classic:1.5.16'
+    testImplementation 'org.springframework.boot:spring-boot-starter-web:3.4.3'
+    testImplementation 'ch.qos.logback:logback-classic:1.5.32'
     testImplementation project(':observarium-github')
     testImplementation project(':observarium-jira')
     testImplementation project(':observarium-gitlab')

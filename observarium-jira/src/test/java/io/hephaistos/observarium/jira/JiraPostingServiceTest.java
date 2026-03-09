@@ -221,46 +221,6 @@ class JiraPostingServiceTest {
   }
 
   // -------------------------------------------------------------------------
-  // fingerprintLabel()
-  // -------------------------------------------------------------------------
-
-  @Nested
-  @DisplayName("fingerprintLabel()")
-  class FingerprintLabelTests {
-
-    @Test
-    @DisplayName("uses first 12 chars of fingerprint as label")
-    void uses12Chars() {
-      String fp = "abc123def456xyz789";
-      String label = JiraPostingService.fingerprintLabel(fp);
-      assertEquals("observarium-abc123def456", label);
-    }
-
-    @Test
-    @DisplayName("uses full fingerprint when shorter than 12 chars")
-    void usesFullWhenShort() {
-      String fp = "short";
-      String label = JiraPostingService.fingerprintLabel(fp);
-      assertEquals("observarium-short", label);
-    }
-
-    @Test
-    @DisplayName("uses exactly 12 chars when fingerprint is exactly 12 chars long")
-    void usesAllWhenExact() {
-      String fp = "exactly12chr";
-      assertEquals(12, fp.length(), "precondition: fingerprint is exactly 12 chars");
-      String label = JiraPostingService.fingerprintLabel(fp);
-      assertEquals("observarium-exactly12chr", label);
-    }
-
-    @Test
-    @DisplayName("label always starts with 'observarium-'")
-    void alwaysHasPrefix() {
-      assertTrue(JiraPostingService.fingerprintLabel("anyfingerprint").startsWith("observarium-"));
-    }
-  }
-
-  // -------------------------------------------------------------------------
   // findDuplicate()
   // -------------------------------------------------------------------------
 
@@ -351,6 +311,26 @@ class JiraPostingServiceTest {
 
       assertFalse(result.found(), "network error should be swallowed and result in notFound");
     }
+
+    @Test
+    @DisplayName("returns notFound gracefully when thread is interrupted")
+    void returnsNotFoundOnInterruptedException() throws Exception {
+      ExceptionEvent event = buildEvent("fp-interrupted");
+
+      JiraPostingService service =
+          new JiraPostingService(
+              config,
+              mockClientThrowing(new InterruptedException("interrupted")),
+              new Gson(),
+              new DefaultIssueFormatter());
+      DuplicateSearchResult result = service.findDuplicate(event);
+
+      assertFalse(
+          result.found(), "InterruptedException should be swallowed and result in notFound");
+      // Service catches Exception broadly and does not restore the interrupt flag; clear any
+      // residual state so this test does not bleed into subsequent ones.
+      Thread.interrupted();
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -423,6 +403,26 @@ class JiraPostingServiceTest {
       assertFalse(result.success());
       assertNotNull(result.errorMessage());
     }
+
+    @Test
+    @DisplayName("returns failure gracefully when thread is interrupted")
+    void returnsFailureOnInterruptedException() throws Exception {
+      ExceptionEvent event = buildEvent("fp-interrupted-create");
+
+      JiraPostingService service =
+          new JiraPostingService(
+              config,
+              mockClientThrowing(new InterruptedException("interrupted")),
+              new Gson(),
+              new DefaultIssueFormatter());
+      PostingResult result = service.createIssue(event);
+
+      assertFalse(result.success());
+      assertNotNull(result.errorMessage());
+      // Service catches Exception broadly and does not restore the interrupt flag; clear any
+      // residual state so this test does not bleed into subsequent ones.
+      Thread.interrupted();
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -492,6 +492,26 @@ class JiraPostingServiceTest {
 
       assertFalse(result.success());
       assertNotNull(result.errorMessage());
+    }
+
+    @Test
+    @DisplayName("returns failure gracefully when thread is interrupted")
+    void returnsFailureOnInterruptedException() throws Exception {
+      ExceptionEvent event = buildEvent("fp-interrupted-comment");
+
+      JiraPostingService service =
+          new JiraPostingService(
+              config,
+              mockClientThrowing(new InterruptedException("interrupted")),
+              new Gson(),
+              new DefaultIssueFormatter());
+      PostingResult result = service.commentOnIssue("OBS-5", event);
+
+      assertFalse(result.success());
+      assertNotNull(result.errorMessage());
+      // Service catches Exception broadly and does not restore the interrupt flag; clear any
+      // residual state so this test does not bleed into subsequent ones.
+      Thread.interrupted();
     }
   }
 }

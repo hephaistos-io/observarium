@@ -106,7 +106,7 @@ public class EmailPostingService implements PostingService {
 
   // --- helpers ---
 
-  private Session buildSession() {
+  Session buildSession() {
     Properties props = new Properties();
     props.put("mail.smtp.host", config.smtpHost());
     props.put("mail.smtp.port", String.valueOf(config.smtpPort()));
@@ -131,7 +131,7 @@ public class EmailPostingService implements PostingService {
    * Produces a plain-text representation of the event suitable for an email body. All fields are
    * written out explicitly so the message is self-contained.
    */
-  private static String buildPlainTextBody(ExceptionEvent event) {
+  private String buildPlainTextBody(ExceptionEvent event) {
     var sb = new StringBuilder();
 
     sb.append("EXCEPTION NOTIFICATION\n");

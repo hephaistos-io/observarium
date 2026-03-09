@@ -182,6 +182,22 @@ class GitLabPostingServiceTest {
     assertFalse(result.found());
   }
 
+  @Test
+  @SuppressWarnings("unchecked")
+  void findDuplicate_returnsNotFound_onInterruptedException() throws Exception {
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenThrow(new InterruptedException("interrupted"));
+
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    DuplicateSearchResult result = service.findDuplicate(buildEvent("SomeException", "boom"));
+
+    assertFalse(result.found());
+    // Service catches Exception broadly and does not restore the interrupt flag; clear any residual
+    // state so this test does not bleed into subsequent ones.
+    Thread.interrupted();
+  }
+
   // -------------------------------------------------------------------------
   // createIssue() — success paths
   // -------------------------------------------------------------------------
@@ -292,6 +308,23 @@ class GitLabPostingServiceTest {
     assertTrue(result.errorMessage().contains("timeout"));
   }
 
+  @Test
+  @SuppressWarnings("unchecked")
+  void createIssue_returnsFailure_onInterruptedException() throws Exception {
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenThrow(new InterruptedException("interrupted"));
+
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    PostingResult result = service.createIssue(buildEvent("SomeException", "boom"));
+
+    assertFalse(result.success());
+    assertNotNull(result.errorMessage());
+    // Service catches Exception broadly and does not restore the interrupt flag; clear any residual
+    // state so this test does not bleed into subsequent ones.
+    Thread.interrupted();
+  }
+
   // -------------------------------------------------------------------------
   // commentOnIssue() — success paths
   // -------------------------------------------------------------------------
@@ -400,6 +433,23 @@ class GitLabPostingServiceTest {
     assertFalse(result.success());
     assertNotNull(result.errorMessage());
     assertTrue(result.errorMessage().contains("connection reset"));
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void commentOnIssue_returnsFailure_onInterruptedException() throws Exception {
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenThrow(new InterruptedException("interrupted"));
+
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    PostingResult result = service.commentOnIssue("5", buildEvent("SomeException", "boom"));
+
+    assertFalse(result.success());
+    assertNotNull(result.errorMessage());
+    // Service catches Exception broadly and does not restore the interrupt flag; clear any residual
+    // state so this test does not bleed into subsequent ones.
+    Thread.interrupted();
   }
 
   // -------------------------------------------------------------------------
@@ -567,12 +617,11 @@ class GitLabPostingServiceTest {
   // Helpers
   // -------------------------------------------------------------------------
 
-  private static ExceptionEvent buildEvent(String exceptionClass, String message) {
+  private ExceptionEvent buildEvent(String exceptionClass, String message) {
     return buildEvent(exceptionClass, message, "test-fingerprint");
   }
 
-  private static ExceptionEvent buildEvent(
-      String exceptionClass, String message, String fingerprint) {
+  private ExceptionEvent buildEvent(String exceptionClass, String message, String fingerprint) {
     return ExceptionEvent.builder()
         .fingerprint(fingerprint)
         .exceptionClass(exceptionClass)
