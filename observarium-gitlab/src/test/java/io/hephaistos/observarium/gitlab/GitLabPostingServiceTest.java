@@ -193,9 +193,7 @@ class GitLabPostingServiceTest {
     DuplicateSearchResult result = service.findDuplicate(buildEvent("SomeException", "boom"));
 
     assertFalse(result.found());
-    // Service catches Exception broadly and does not restore the interrupt flag; clear any residual
-    // state so this test does not bleed into subsequent ones.
-    Thread.interrupted();
+    assertTrue(Thread.interrupted(), "Service must restore the interrupt flag");
   }
 
   // -------------------------------------------------------------------------
@@ -320,9 +318,7 @@ class GitLabPostingServiceTest {
 
     assertFalse(result.success());
     assertNotNull(result.errorMessage());
-    // Service catches Exception broadly and does not restore the interrupt flag; clear any residual
-    // state so this test does not bleed into subsequent ones.
-    Thread.interrupted();
+    assertTrue(Thread.interrupted(), "Service must restore the interrupt flag");
   }
 
   // -------------------------------------------------------------------------
@@ -447,9 +443,7 @@ class GitLabPostingServiceTest {
 
     assertFalse(result.success());
     assertNotNull(result.errorMessage());
-    // Service catches Exception broadly and does not restore the interrupt flag; clear any residual
-    // state so this test does not bleed into subsequent ones.
-    Thread.interrupted();
+    assertTrue(Thread.interrupted(), "Service must restore the interrupt flag");
   }
 
   // -------------------------------------------------------------------------

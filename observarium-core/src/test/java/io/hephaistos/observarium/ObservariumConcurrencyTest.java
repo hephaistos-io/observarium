@@ -157,6 +157,76 @@ class ObservariumConcurrencyTest {
   }
 
   /**
+   * When the queue is full, new submissions are dropped (the rejection handler logs and returns
+   * without throwing). The caller must not receive an exception on its thread, and the returned
+   * future must resolve — either with a success result (if the task was accepted) or a failure
+   * result (if the task was dropped and the future never completes normally, in which case the
+   * queue-full drop means the future is abandoned). The key contract is: captureException() itself
+   * must never throw, regardless of queue state.
+   *
+   * <p>Strategy:
+   * <ol>
+   *   <li>Create an Observarium with queueCapacity(1) and a blocking posting service.
+   *   <li>Submit one exception to occupy the single queue slot and block the worker thread.
+   *   <li>Submit several more exceptions while the queue is full. These are dropped.
+   *   <li>Verify none of those captureException() calls threw.
+   *   <li>Unblock the worker, verify the first future resolves successfully.
+   * </ol>
+   */
+  @Test
+  void captureException_queueFull_doesNotThrowOnCallerThread() throws Exception {
+    CountDownLatch workerEntered = new CountDownLatch(1);
+    CountDownLatch releaseWorker = new CountDownLatch(1);
+    LatchedPostingService svc = new LatchedPostingService(workerEntered, releaseWorker);
+
+    // A capacity of 1 means: 1 slot in the queue. The worker picks up the first task
+    // immediately (so the queue empties), then blocks. A second submission fills the queue,
+    // and a third submission arrives when both the worker and the queue slot are occupied.
+    Observarium obs = Observarium.builder().queueCapacity(1).addPostingService(svc).build();
+
+    try {
+      // Submit the first exception — the worker picks it up and blocks on workerEntered.
+      CompletableFuture<List<PostingResult>> firstFuture =
+          obs.captureException(new RuntimeException("first"));
+
+      // Wait until the worker is genuinely inside createIssue and blocked.
+      assertTrue(
+          workerEntered.await(5, java.util.concurrent.TimeUnit.SECONDS),
+          "Worker must enter createIssue within 5 s");
+
+      // Submit more exceptions while the worker is blocked. Some or all will be dropped.
+      // The critical assertion is that none of these calls throws.
+      List<RuntimeException> thrown = new ArrayList<>();
+      List<CompletableFuture<List<PostingResult>>> droppedFutures = new ArrayList<>();
+      for (int i = 0; i < 5; i++) {
+        final int index = i;
+        try {
+          droppedFutures.add(obs.captureException(new RuntimeException("overflow-" + index)));
+        } catch (RuntimeException e) {
+          thrown.add(e);
+        }
+      }
+
+      assertTrue(
+          thrown.isEmpty(),
+          "captureException must never throw on the caller's thread, even when the queue is full; "
+              + "got: " + thrown);
+
+      // Unblock the worker so the first future can complete.
+      releaseWorker.countDown();
+
+      List<PostingResult> firstResults =
+          firstFuture.get(5, java.util.concurrent.TimeUnit.SECONDS);
+      assertNotNull(firstResults, "First future must resolve after the worker is unblocked");
+      assertEquals(1, firstResults.size());
+      assertTrue(firstResults.get(0).success(), "First exception must be processed successfully");
+    } finally {
+      releaseWorker.countDown(); // idempotent — safe to call twice
+      obs.shutdown();
+    }
+  }
+
+  /**
    * After shutdown(), calling captureException() must not throw on the calling thread.
    *
    * <p>The executor's custom rejection handler silently drops new submissions after shutdown, so

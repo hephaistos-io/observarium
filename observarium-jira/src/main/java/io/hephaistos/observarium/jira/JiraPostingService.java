@@ -124,6 +124,9 @@ public class JiraPostingService implements PostingService {
 
     } catch (Exception e) {
       log.error("Error searching for Jira duplicate for fingerprint {}", event.fingerprint(), e);
+      if (e instanceof InterruptedException) {
+        Thread.currentThread().interrupt();
+      }
       return DuplicateSearchResult.notFound();
     }
   }
@@ -162,6 +165,9 @@ public class JiraPostingService implements PostingService {
 
     } catch (Exception e) {
       log.error("Error creating Jira issue for fingerprint {}", event.fingerprint(), e);
+      if (e instanceof InterruptedException) {
+        Thread.currentThread().interrupt();
+      }
       return PostingResult.failure("Exception creating Jira issue: " + e.getMessage());
     }
   }
@@ -195,6 +201,9 @@ public class JiraPostingService implements PostingService {
 
     } catch (Exception e) {
       log.error("Error adding comment to Jira issue {}", externalIssueId, e);
+      if (e instanceof InterruptedException) {
+        Thread.currentThread().interrupt();
+      }
       return PostingResult.failure("Exception commenting on Jira issue: " + e.getMessage());
     }
   }

@@ -107,6 +107,73 @@ class ExceptionProcessorTest {
     }
   }
 
+  /**
+   * PostingService that reports no duplicate (so createIssue is called) and then throws from
+   * createIssue().
+   */
+  private static class CreateIssueThrowingService implements PostingService {
+
+    private final String serviceName;
+
+    CreateIssueThrowingService(String name) {
+      this.serviceName = name;
+    }
+
+    @Override
+    public String name() {
+      return serviceName;
+    }
+
+    @Override
+    public DuplicateSearchResult findDuplicate(ExceptionEvent event) {
+      return DuplicateSearchResult.notFound();
+    }
+
+    @Override
+    public PostingResult createIssue(ExceptionEvent event) {
+      throw new RuntimeException("createIssue failed on " + serviceName);
+    }
+
+    @Override
+    public PostingResult commentOnIssue(String externalIssueId, ExceptionEvent event) {
+      return PostingResult.success(externalIssueId, "https://tracker/" + externalIssueId);
+    }
+  }
+
+  /**
+   * PostingService that reports a duplicate (so commentOnIssue is called) and then throws from
+   * commentOnIssue().
+   */
+  private static class CommentOnIssueThrowingService implements PostingService {
+
+    private static final String EXISTING_ID = "EXISTING-99";
+    private final String serviceName;
+
+    CommentOnIssueThrowingService(String name) {
+      this.serviceName = name;
+    }
+
+    @Override
+    public String name() {
+      return serviceName;
+    }
+
+    @Override
+    public DuplicateSearchResult findDuplicate(ExceptionEvent event) {
+      return DuplicateSearchResult.found(EXISTING_ID, "https://tracker/" + EXISTING_ID);
+    }
+
+    @Override
+    public PostingResult createIssue(ExceptionEvent event) {
+      return PostingResult.success("NEW-1", "https://tracker/NEW-1");
+    }
+
+    @Override
+    public PostingResult commentOnIssue(String externalIssueId, ExceptionEvent event) {
+      throw new RuntimeException("commentOnIssue failed on " + serviceName);
+    }
+  }
+
   // -----------------------------------------------------------------------
   // Helper
   // -----------------------------------------------------------------------
@@ -313,5 +380,94 @@ class ExceptionProcessorTest {
         process(proc, new RuntimeException("alone"), Severity.ERROR, Map.of());
     assertNotNull(results);
     assertTrue(results.isEmpty());
+  }
+
+  // -----------------------------------------------------------------------
+  // Tests: service isolation — createIssue and commentOnIssue throwing (Gap 2)
+  //
+  // The existing failingService test only covers findDuplicate() throwing.
+  // These tests verify the same isolation guarantee when the exception occurs
+  // inside createIssue() or commentOnIssue(), which are reached only after
+  // findDuplicate() has returned successfully.
+  // -----------------------------------------------------------------------
+
+  @Test
+  void createIssueThrowing_doesNotPreventOtherServicesFromRunning() {
+    // First service throws from createIssue (findDuplicate returns notFound).
+    // Second service is healthy and must still be called.
+    CreateIssueThrowingService failingSvc = new CreateIssueThrowingService("create-fail");
+    RecordingPostingService goodSvc =
+        new RecordingPostingService("good", DuplicateSearchResult.notFound());
+
+    ExceptionProcessor proc = processor(List.of(failingSvc, goodSvc));
+    List<PostingResult> results =
+        process(proc, new RuntimeException("oops"), Severity.ERROR, Map.of());
+
+    assertEquals(2, results.size(), "Both services must produce a result");
+
+    PostingResult failResult = results.get(0);
+    assertFalse(failResult.success(), "createIssue failure must produce an unsuccessful result");
+    assertTrue(
+        failResult.errorMessage().contains("create-fail"),
+        "Error message must reference the failing service name");
+
+    PostingResult goodResult = results.get(1);
+    assertTrue(goodResult.success(), "Good service must still succeed after peer throws in createIssue");
+    assertEquals(1, goodSvc.createIssueCalls.size(), "Good service's createIssue must still be called");
+  }
+
+  @Test
+  void createIssueThrowing_failureResultContainsServiceName() {
+    CreateIssueThrowingService failingSvc = new CreateIssueThrowingService("create-fail");
+
+    ExceptionProcessor proc = processor(List.of(failingSvc));
+    List<PostingResult> results =
+        process(proc, new RuntimeException("oops"), Severity.ERROR, Map.of());
+
+    assertEquals(1, results.size());
+    assertFalse(results.get(0).success());
+    assertTrue(
+        results.get(0).errorMessage().contains("create-fail"),
+        "Failure message must include the service name for diagnostics");
+  }
+
+  @Test
+  void commentOnIssueThrowing_doesNotPreventOtherServicesFromRunning() {
+    // First service has a duplicate, so commentOnIssue is called — and throws.
+    // Second service is healthy and must still be called.
+    CommentOnIssueThrowingService failingSvc = new CommentOnIssueThrowingService("comment-fail");
+    RecordingPostingService goodSvc =
+        new RecordingPostingService("good", DuplicateSearchResult.notFound());
+
+    ExceptionProcessor proc = processor(List.of(failingSvc, goodSvc));
+    List<PostingResult> results =
+        process(proc, new RuntimeException("oops"), Severity.ERROR, Map.of());
+
+    assertEquals(2, results.size(), "Both services must produce a result");
+
+    PostingResult failResult = results.get(0);
+    assertFalse(failResult.success(), "commentOnIssue failure must produce an unsuccessful result");
+    assertTrue(
+        failResult.errorMessage().contains("comment-fail"),
+        "Error message must reference the failing service name");
+
+    PostingResult goodResult = results.get(1);
+    assertTrue(goodResult.success(), "Good service must still succeed after peer throws in commentOnIssue");
+    assertEquals(1, goodSvc.createIssueCalls.size(), "Good service's createIssue must still be called");
+  }
+
+  @Test
+  void commentOnIssueThrowing_failureResultContainsServiceName() {
+    CommentOnIssueThrowingService failingSvc = new CommentOnIssueThrowingService("comment-fail");
+
+    ExceptionProcessor proc = processor(List.of(failingSvc));
+    List<PostingResult> results =
+        process(proc, new RuntimeException("oops"), Severity.ERROR, Map.of());
+
+    assertEquals(1, results.size());
+    assertFalse(results.get(0).success());
+    assertTrue(
+        results.get(0).errorMessage().contains("comment-fail"),
+        "Failure message must include the service name for diagnostics");
   }
 }

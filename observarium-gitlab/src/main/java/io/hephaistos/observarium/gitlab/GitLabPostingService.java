@@ -118,6 +118,9 @@ public class GitLabPostingService implements PostingService {
 
     } catch (Exception e) {
       log.error("Failed to search for duplicate GitLab issue", e);
+      if (e instanceof InterruptedException) {
+        Thread.currentThread().interrupt();
+      }
       return DuplicateSearchResult.notFound();
     }
   }
@@ -162,6 +165,9 @@ public class GitLabPostingService implements PostingService {
 
     } catch (Exception e) {
       log.error("Failed to create GitLab issue", e);
+      if (e instanceof InterruptedException) {
+        Thread.currentThread().interrupt();
+      }
       return PostingResult.failure("Failed to create GitLab issue: " + e.getMessage());
     }
   }
@@ -210,6 +216,9 @@ public class GitLabPostingService implements PostingService {
 
     } catch (Exception e) {
       log.error("Failed to comment on GitLab issue {}", externalIssueId, e);
+      if (e instanceof InterruptedException) {
+        Thread.currentThread().interrupt();
+      }
       return PostingResult.failure("Failed to comment on GitLab issue: " + e.getMessage());
     }
   }

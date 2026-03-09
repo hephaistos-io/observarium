@@ -10,6 +10,8 @@ import io.hephaistos.observarium.posting.PostingResult;
 import io.hephaistos.observarium.posting.PostingService;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
@@ -69,6 +71,43 @@ class ObservariumExceptionHandlerTest {
     public void uncaughtException(Thread t, Throwable e) {
       threads.add(t);
       received.add(e);
+    }
+  }
+
+  /**
+   * PostingService that blocks inside createIssue until a release latch is counted down. Used to
+   * hold the worker thread so that the 5-second get() in the handler times out.
+   */
+  private static class BlockingPostingService implements PostingService {
+    private final CountDownLatch releaseLatch;
+
+    BlockingPostingService(CountDownLatch releaseLatch) {
+      this.releaseLatch = releaseLatch;
+    }
+
+    @Override
+    public String name() {
+      return "blocking";
+    }
+
+    @Override
+    public DuplicateSearchResult findDuplicate(ExceptionEvent event) {
+      return DuplicateSearchResult.notFound();
+    }
+
+    @Override
+    public PostingResult createIssue(ExceptionEvent event) {
+      try {
+        releaseLatch.await();
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+      }
+      return PostingResult.success("ISSUE-1", "https://tracker/ISSUE-1");
+    }
+
+    @Override
+    public PostingResult commentOnIssue(String externalIssueId, ExceptionEvent event) {
+      return PostingResult.success(externalIssueId, "https://tracker/" + externalIssueId);
     }
   }
 
@@ -211,5 +250,103 @@ class ObservariumExceptionHandlerTest {
         existingHandler.received.size(),
         "The previously installed handler must still be invoked after install()");
     assertSame(ex, existingHandler.received.get(0));
+  }
+
+  // -----------------------------------------------------------------------
+  // Resilience: delivery failure (Gap 3)
+  //
+  // The handler calls captureException(...).get(5, SECONDS). If that get()
+  // throws (TimeoutException, InterruptedException, ExecutionException), the
+  // catch block must swallow it so that uncaughtException() never propagates
+  // an exception to the JVM. The delegate must still be called afterwards.
+  // -----------------------------------------------------------------------
+
+  /**
+   * When the calling thread has been interrupted before uncaughtException() runs, the .get() call
+   * throws InterruptedException. The handler must catch it, must not re-throw, and must still
+   * invoke the delegate.
+   *
+   * <p>We restore the thread's interrupted flag after the test so later tests are not affected.
+   */
+  @Test
+  void uncaughtException_interruptedDuringDelivery_doesNotThrowAndCallsDelegate()
+      throws InterruptedException {
+    CapturingPostingService svc = new CapturingPostingService();
+    Observarium obs = buildObservarium(svc);
+    RecordingUncaughtHandler delegate = new RecordingUncaughtHandler();
+    ObservariumExceptionHandler handler = new ObservariumExceptionHandler(obs, delegate);
+
+    AtomicBoolean threw = new AtomicBoolean(false);
+    CountDownLatch testDone = new CountDownLatch(1);
+
+    // Run uncaughtException on a separate thread so we can interrupt it cleanly
+    // without polluting the test thread's interrupt status.
+    Thread runner =
+        new Thread(
+            () -> {
+              // Pre-interrupt this thread so that .get() immediately throws InterruptedException.
+              Thread.currentThread().interrupt();
+              try {
+                handler.uncaughtException(Thread.currentThread(), new RuntimeException("crash"));
+              } catch (Exception unexpected) {
+                threw.set(true);
+              } finally {
+                testDone.countDown();
+              }
+            },
+            "handler-test-thread");
+
+    runner.start();
+    assertTrue(testDone.await(10, java.util.concurrent.TimeUnit.SECONDS),
+        "Handler thread must complete within 10 s");
+
+    assertFalse(threw.get(), "uncaughtException must not throw even when delivery is interrupted");
+    assertEquals(1, delegate.received.size(), "Delegate must still be called after delivery failure");
+  }
+
+  /**
+   * When the .get() call on the future times out (because the posting service is too slow),
+   * uncaughtException() must catch the TimeoutException, must not re-throw, and must still invoke
+   * the delegate.
+   *
+   * <p>A posting service that never releases its latch is used to guarantee the 5-second timeout
+   * elapses. This test takes slightly over 5 seconds by design and is tagged accordingly.
+   */
+  @Test
+  @org.junit.jupiter.api.Timeout(15)
+  void uncaughtException_deliveryTimesOut_doesNotThrowAndCallsDelegate() throws InterruptedException {
+    // The latch is never released, so createIssue blocks indefinitely and the
+    // handler's 5-second .get() timeout will expire.
+    CountDownLatch neverReleased = new CountDownLatch(1);
+    BlockingPostingService svc = new BlockingPostingService(neverReleased);
+    Observarium obs = buildObservarium(svc);
+    RecordingUncaughtHandler delegate = new RecordingUncaughtHandler();
+    ObservariumExceptionHandler handler = new ObservariumExceptionHandler(obs, delegate);
+
+    AtomicBoolean threw = new AtomicBoolean(false);
+    CountDownLatch testDone = new CountDownLatch(1);
+
+    Thread runner =
+        new Thread(
+            () -> {
+              try {
+                handler.uncaughtException(Thread.currentThread(), new RuntimeException("slow crash"));
+              } catch (Exception unexpected) {
+                threw.set(true);
+              } finally {
+                // Release the latch so the worker thread can exit cleanly.
+                neverReleased.countDown();
+                testDone.countDown();
+              }
+            },
+            "handler-timeout-test-thread");
+
+    runner.start();
+    // Allow up to 10 s for the handler to time out (FATAL_WAIT_SECONDS=5) and return.
+    assertTrue(testDone.await(10, java.util.concurrent.TimeUnit.SECONDS),
+        "Handler thread must return after the 5-second delivery timeout");
+
+    assertFalse(threw.get(), "uncaughtException must not throw when delivery times out");
+    assertEquals(1, delegate.received.size(), "Delegate must still be called after delivery timeout");
   }
 }

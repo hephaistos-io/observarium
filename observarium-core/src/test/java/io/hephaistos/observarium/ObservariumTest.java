@@ -362,4 +362,103 @@ class ObservariumTest {
       obs.shutdown();
     }
   }
+
+  // -----------------------------------------------------------------------
+  // Resilience: fingerprinter/scrubber throwing (Gap 1)
+  //
+  // fingerprint() and scrub() are called inside buildEvent(), which runs
+  // before the per-service loop. If either throws, the exception propagates
+  // out of ExceptionProcessor.process(), which is the Supplier passed to
+  // CompletableFuture.supplyAsync(). That causes the future to complete
+  // exceptionally, and Observarium.captureException()'s .exceptionally()
+  // handler catches it and maps it to a single failure PostingResult.
+  // -----------------------------------------------------------------------
+
+  @Test
+  void captureException_fingerprintThrows_futureResolvesToFailureResult() throws Exception {
+    // The fingerprinter is called inside buildEvent() before the posting-service loop.
+    // When it throws, the future must NOT propagate the exception — the .exceptionally()
+    // handler must catch it and return a failure PostingResult instead.
+    Observarium obs =
+        Observarium.builder()
+            .fingerprinter(
+                t -> {
+                  throw new RuntimeException("fingerprint exploded");
+                })
+            .addPostingService(new CapturingPostingService())
+            .build();
+    try {
+      List<PostingResult> results = obs.captureException(new RuntimeException("boom")).get();
+
+      assertEquals(
+          1, results.size(), "A single failure result must be returned when the fingerprinter throws");
+      assertFalse(results.get(0).success(), "Result must be a failure when fingerprinter throws");
+      assertNotNull(results.get(0).errorMessage(), "Failure result must carry an error message");
+    } finally {
+      obs.shutdown();
+    }
+  }
+
+  @Test
+  void captureException_fingerprintThrows_doesNotPropagateException() {
+    // The CompletableFuture returned by captureException() must complete normally
+    // (i.e. .get() must not throw ExecutionException) even when the fingerprinter throws.
+    Observarium obs =
+        Observarium.builder()
+            .fingerprinter(
+                t -> {
+                  throw new RuntimeException("fingerprint exploded");
+                })
+            .build();
+    try {
+      assertDoesNotThrow(
+          () -> obs.captureException(new RuntimeException("boom")).get(),
+          "captureException future must not throw when the fingerprinter throws");
+    } finally {
+      obs.shutdown();
+    }
+  }
+
+  @Test
+  void captureException_scrubberThrows_futureResolvesToFailureResult() throws Exception {
+    // scrub() is also called inside buildEvent(). Same contract: the .exceptionally()
+    // handler must catch any throw and map it to a failure PostingResult.
+    Observarium obs =
+        Observarium.builder()
+            .scrubber(
+                text -> {
+                  throw new RuntimeException("scrubber exploded");
+                })
+            .addPostingService(new CapturingPostingService())
+            .build();
+    try {
+      List<PostingResult> results = obs.captureException(new RuntimeException("boom")).get();
+
+      assertEquals(
+          1, results.size(), "A single failure result must be returned when the scrubber throws");
+      assertFalse(results.get(0).success(), "Result must be a failure when scrubber throws");
+      assertNotNull(results.get(0).errorMessage(), "Failure result must carry an error message");
+    } finally {
+      obs.shutdown();
+    }
+  }
+
+  @Test
+  void captureException_scrubberThrows_doesNotPropagateException() {
+    // Same as the fingerprinter variant: the future must complete normally.
+    Observarium obs =
+        Observarium.builder()
+            .scrubber(
+                text -> {
+                  throw new RuntimeException("scrubber exploded");
+                })
+            .build();
+    try {
+      assertDoesNotThrow(
+          () -> obs.captureException(new RuntimeException("boom")).get(),
+          "captureException future must not throw when the scrubber throws");
+    } finally {
+      obs.shutdown();
+    }
+  }
 }

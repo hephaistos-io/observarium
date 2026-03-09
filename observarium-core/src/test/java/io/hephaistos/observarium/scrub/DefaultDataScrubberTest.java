@@ -46,6 +46,22 @@ class DefaultDataScrubberTest {
   }
 
   // -----------------------------------------------------------------------
+  // Empty string input
+  // -----------------------------------------------------------------------
+
+  @Test
+  void basicLevel_emptyStringReturnsEmptyString() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.BASIC);
+    assertEquals("", scrubber.scrub(""));
+  }
+
+  @Test
+  void strictLevel_emptyStringReturnsEmptyString() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.STRICT);
+    assertEquals("", scrubber.scrub(""));
+  }
+
+  // -----------------------------------------------------------------------
   // BASIC level — credential-style patterns
   // -----------------------------------------------------------------------
 
@@ -59,15 +75,25 @@ class DefaultDataScrubberTest {
         "token=abc123xyz",
         "api_key=sk-1234567890",
         "apikey=sk-1234567890",
-        "authorization=Basic dXNlcjpwYXNz",
         "auth_token=tok-abc",
         "access_token=at-xyz",
         "private_key=BEGIN_RSA"
       })
   void basicLevel_redactsCredentialKeyValuePairs(String input) {
     DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.BASIC);
+    // The entire key=value expression is replaced with [REDACTED].
+    assertEquals(REDACTED, scrubber.scrub(input));
+  }
+
+  @Test
+  void basicLevel_redactsCredentialKeyValuePair_authorizationWithSpaceInValue() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.BASIC);
+    // The credential value pattern (\S{1,200}) stops at whitespace, so "Basic" is the
+    // matched value token and the remainder "dXNlcjpwYXNz" is left as-is in the output.
+    String input = "authorization=Basic dXNlcjpwYXNz";
     String result = scrubber.scrub(input);
-    assertTrue(result.contains(REDACTED), "Expected BASIC scrubber to redact: " + input);
+    assertTrue(result.contains(REDACTED), "authorization keyword must be redacted");
+    assertFalse(result.contains("authorization="), "Raw key=value must not remain");
   }
 
   @Test
@@ -87,8 +113,8 @@ class DefaultDataScrubberTest {
   void basicLevel_caseInsensitiveKeyMatching() {
     DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.BASIC);
     // Keys in upper-case and mixed-case should still be redacted.
-    assertTrue(scrubber.scrub("PASSWORD=secret").contains(REDACTED));
-    assertTrue(scrubber.scrub("Token=abc").contains(REDACTED));
+    assertEquals(REDACTED, scrubber.scrub("PASSWORD=secret"));
+    assertEquals(REDACTED, scrubber.scrub("Token=abc"));
   }
 
   @Test
@@ -116,6 +142,123 @@ class DefaultDataScrubberTest {
   }
 
   // -----------------------------------------------------------------------
+  // BASIC level — colon separator
+  // -----------------------------------------------------------------------
+
+  @Test
+  void basicLevel_redactsCredential_withColonSeparator() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.BASIC);
+    // The regex supports both "=" and ":" as separators.
+    assertEquals(REDACTED, scrubber.scrub("password: hunter2"));
+  }
+
+  @Test
+  void basicLevel_redactsCredential_withColonAndSpaceAroundSeparator() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.BASIC);
+    // Spaces are allowed on both sides of the separator via \s*[:=]\s*.
+    assertEquals(REDACTED, scrubber.scrub("token : abc123"));
+  }
+
+  @Test
+  void basicLevel_redactsCredential_withColonSeparatorEmbeddedInSentence() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.BASIC);
+    // The value pattern (\S{1,200}) is greedy and non-whitespace, so it includes the
+    // trailing comma: "topsecret," becomes part of the match.  The replacement therefore
+    // consumes the comma, producing "retry" with a leading space rather than ", retry".
+    String input = "Auth failed, secret: topsecret, retry";
+    String result = scrubber.scrub(input);
+    assertEquals("Auth failed, [REDACTED] retry", result);
+    assertFalse(result.contains("topsecret"));
+  }
+
+  // -----------------------------------------------------------------------
+  // BASIC level — quoted values
+  // -----------------------------------------------------------------------
+
+  @Test
+  void basicLevel_redactsCredential_withDoubleQuotedValue() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.BASIC);
+    // Quotes are non-whitespace so \S{1,200} matches them as part of the value.
+    assertEquals(REDACTED, scrubber.scrub("password=\"hunter2\""));
+  }
+
+  @Test
+  void basicLevel_redactsCredential_withSingleQuotedValue() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.BASIC);
+    assertEquals(REDACTED, scrubber.scrub("token='abc123xyz'"));
+  }
+
+  @Test
+  void basicLevel_redactsCredential_withQuotedValueEmbeddedInSentence() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.BASIC);
+    String input = "Login failed: password=\"s3cr3t\" at endpoint";
+    String result = scrubber.scrub(input);
+    assertEquals("Login failed: [REDACTED] at endpoint", result);
+    assertFalse(result.contains("s3cr3t"));
+  }
+
+  // -----------------------------------------------------------------------
+  // BASIC level — partial keyword matches (non-sensitive keys)
+  // -----------------------------------------------------------------------
+
+  @Test
+  void basicLevel_doesNotRedactPartialKeywordMatch_passwordless() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.BASIC);
+    // "passwordless" is not in the keyword list; only "password" is, and it must be
+    // followed immediately by [:=].  "passwordless=foo" has "less" between "password"
+    // and "=", so the keyword-value pattern must not match.
+    String input = "passwordless=foo";
+    assertEquals(input, scrubber.scrub(input));
+  }
+
+  // -----------------------------------------------------------------------
+  // Multi-line / stack trace scrubbing
+  // -----------------------------------------------------------------------
+
+  @Test
+  void basicLevel_redactsCredentialEmbeddedInMultiLineStackTrace() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.BASIC);
+    // Realistic stack trace where a credential leaks through an exception message.
+    String input =
+        "java.sql.SQLException: Login failed for user 'admin' with password=hunter2\n"
+            + "\tat com.example.db.DataSource.connect(DataSource.java:42)\n"
+            + "\tat com.example.service.UserService.login(UserService.java:87)\n"
+            + "\tat com.example.api.AuthController.authenticate(AuthController.java:55)\n"
+            + "Caused by: java.io.IOException: token=secret-refresh-xyz\n"
+            + "\tat com.example.auth.TokenStore.refresh(TokenStore.java:19)";
+
+    String result = scrubber.scrub(input);
+
+    assertFalse(result.contains("hunter2"), "Password value must be redacted in stack trace");
+    assertFalse(result.contains("secret-refresh-xyz"), "Token value must be redacted in stack trace");
+    assertTrue(result.contains(REDACTED), "Redacted marker must be present");
+    // Stack frame lines must be preserved intact.
+    assertTrue(result.contains("\tat com.example.db.DataSource.connect(DataSource.java:42)"));
+    assertTrue(result.contains("\tat com.example.service.UserService.login(UserService.java:87)"));
+  }
+
+  @Test
+  void strictLevel_redactsAllSensitiveDataInMultiLineStackTrace() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.STRICT);
+    String input =
+        "com.example.RemoteCallException: Remote call from 10.0.0.42 failed\n"
+            + "\tat com.example.Client.call(Client.java:33)\n"
+            + "Caused by: java.lang.RuntimeException: auth failed for user@example.com\n"
+            + "\tat com.example.Auth.verify(Auth.java:11)\n"
+            + "Context: api_key=sk-12345 ipv6=2001:db8::1";
+
+    String result = scrubber.scrub(input);
+
+    assertFalse(result.contains("10.0.0.42"), "IPv4 must be redacted at STRICT level");
+    assertFalse(result.contains("user@example.com"), "Email must be redacted at STRICT level");
+    assertFalse(result.contains("sk-12345"), "API key value must be redacted at STRICT level");
+    assertFalse(result.contains("2001:db8::1"), "IPv6 must be redacted at STRICT level");
+    assertTrue(result.contains(REDACTED));
+    assertTrue(result.contains("\tat com.example.Client.call(Client.java:33)"),
+        "Stack frame lines must be preserved");
+  }
+
+  // -----------------------------------------------------------------------
   // STRICT level — emails, IPs, phone numbers
   // -----------------------------------------------------------------------
 
@@ -123,16 +266,103 @@ class DefaultDataScrubberTest {
   void strictLevel_redactsEmail() {
     DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.STRICT);
     String result = scrubber.scrub("Contact user@example.com for support");
-    assertTrue(result.contains(REDACTED), "Email address must be redacted at STRICT level");
-    assertFalse(result.contains("user@example.com"));
+    assertEquals("Contact [REDACTED] for support", result);
   }
 
   @Test
-  void strictLevel_redactsIpAddress() {
+  void strictLevel_redactsIpv4Address() {
     DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.STRICT);
     String result = scrubber.scrub("Request from 10.0.0.1 failed");
-    assertTrue(result.contains(REDACTED), "IP address must be redacted at STRICT level");
-    assertFalse(result.contains("10.0.0.1"));
+    assertEquals("Request from [REDACTED] failed", result);
+  }
+
+  // -----------------------------------------------------------------------
+  // STRICT level — IPv6 addresses
+  // -----------------------------------------------------------------------
+
+  @Test
+  void strictLevel_redactsIpv6_fullForm() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.STRICT);
+    String result = scrubber.scrub("peer 2001:0db8:85a3:0000:0000:8a2e:0370:7334 connected");
+    assertFalse(result.contains("2001:0db8:85a3:0000:0000:8a2e:0370:7334"),
+        "Full-form IPv6 must be redacted");
+    assertTrue(result.contains(REDACTED));
+  }
+
+  @Test
+  void strictLevel_redactsIpv6_loopback() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.STRICT);
+    String result = scrubber.scrub("connection from ::1 rejected");
+    assertFalse(result.contains("::1"), "IPv6 loopback ::1 must be redacted");
+    assertTrue(result.contains(REDACTED));
+  }
+
+  @Test
+  void strictLevel_redactsIpv6_compressed() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.STRICT);
+    String result = scrubber.scrub("host fe80::1 is unreachable");
+    assertFalse(result.contains("fe80::1"), "Compressed IPv6 must be redacted");
+    assertTrue(result.contains(REDACTED));
+  }
+
+  @Test
+  void strictLevel_redactsIpv6_fullCompressed() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.STRICT);
+    String result = scrubber.scrub("route via 2001:db8::1 dropped");
+    assertFalse(result.contains("2001:db8::1"), "Compressed IPv6 with :: must be redacted");
+    assertTrue(result.contains(REDACTED));
+  }
+
+  @Test
+  void strictLevel_redactsIpv6_ipv4Mapped() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.STRICT);
+    // IPv4-mapped IPv6 (::ffff:192.168.1.1): the IPv4 pattern fires first and
+    // redacts the 192.168.1.1 portion. The ::ffff: prefix remains in the output
+    // because the IPv6 regex cannot match it as a unit (the trailing dotted-decimal
+    // part breaks the lookahead). This is an accepted limitation — the actual IP
+    // address is scrubbed, and the residual prefix is not sensitive on its own.
+    String input = "mapped address ::ffff:192.168.1.1 in log";
+    String result = scrubber.scrub(input);
+    assertFalse(result.contains("192.168.1.1"), "IPv4 portion must be redacted");
+    assertTrue(result.contains(REDACTED));
+  }
+
+  @Test
+  void strictLevel_doesNotRedactMacAddresses() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.STRICT);
+    String input = "NIC 00:11:22:33:44:55 is down";
+    assertTrue(
+        scrubber.scrub(input).contains("00:11:22:33:44:55"),
+        "MAC addresses must not be redacted as IPv6");
+  }
+
+  @Test
+  void strictLevel_doesNotRedactTimeStrings() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.STRICT);
+    String input = "Event at 12:34:56 logged";
+    assertTrue(
+        scrubber.scrub(input).contains("12:34:56"),
+        "HH:MM:SS time strings must not be redacted as IPv6");
+  }
+
+  @Test
+  void strictLevel_doesNotRedactNumericRatios() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.STRICT);
+    String input = "Aspect ratio 16:9:1 used";
+    assertTrue(
+        scrubber.scrub(input).contains("16:9:1"),
+        "Numeric ratios must not be redacted as IPv6");
+  }
+
+  @Test
+  void strictLevel_redactsHexScopeResolutionAsIpv6() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.STRICT);
+    // abc::def is a valid compressed IPv6 address. The scrubber intentionally matches
+    // it even though it could also be a C++/Rust scope-resolution expression.
+    // Over-redaction is preferred at STRICT level over potential address leaks.
+    String result = scrubber.scrub("called abc::def in module");
+    assertFalse(result.contains("abc::def"), "Hex scope tokens are treated as IPv6 at STRICT level");
+    assertTrue(result.contains(REDACTED));
   }
 
   @ParameterizedTest
@@ -169,8 +399,7 @@ class DefaultDataScrubberTest {
     // Input does not match any built-in BASIC patterns, so only the custom one fires.
     String input = "SSN: 123-45-6789";
     String result = scrubber.scrub(input);
-    assertTrue(result.contains(REDACTED), "Custom pattern must redact when level is BASIC");
-    assertFalse(result.contains("123-45-6789"));
+    assertEquals("SSN: [REDACTED]", result);
   }
 
   @Test

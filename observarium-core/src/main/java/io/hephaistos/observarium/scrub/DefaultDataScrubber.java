@@ -12,8 +12,8 @@ import java.util.regex.Pattern;
  * <ul>
  *   <li>{@link ScrubLevel#BASIC} — credential-style key-value pairs (e.g. {@code password=secret},
  *       {@code token: abc123}) and Bearer tokens.
- *   <li>{@link ScrubLevel#STRICT} — everything in BASIC, plus email addresses, IPv4 addresses, and
- *       US-format phone numbers.
+ *   <li>{@link ScrubLevel#STRICT} — everything in BASIC, plus email addresses, IPv4 and IPv6
+ *       addresses, and US-format phone numbers.
  * </ul>
  *
  * <p>At {@link ScrubLevel#NONE} no substitution is performed and the input is returned as-is.
@@ -25,6 +25,21 @@ import java.util.regex.Pattern;
 public class DefaultDataScrubber implements DataScrubber {
 
   private static final String REDACTED = "[REDACTED]";
+
+  // Matches full 8-group IPv6 (e.g. 2001:0db8:85a3:0000:0000:8a2e:0370:7334) and
+  // compressed forms that contain "::" (e.g. ::1, fe80::1, 2001:db8::1).
+  // Known trade-off: any <hex>::<hex> token (e.g. abc::def) is a valid compressed
+  // IPv6 address and will be matched, even if it was intended as a scope-resolution
+  // operator (C++, Rust). This is acceptable for a STRICT-level scrubber where
+  // over-redaction is preferred over leaking addresses.
+  private static final Pattern IPV6_PATTERN =
+      Pattern.compile(
+          // Full form: exactly 8 colon-separated hex groups (no ::)
+          "(?<![.\\w])(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}(?![.:\\w])"
+              // Compressed with prefix: groups::tail — e.g. fe80::1, 2001:db8::1
+              + "|(?<![.\\w])[0-9a-fA-F]{1,4}(?::[0-9a-fA-F]{1,4})*::(?:[0-9a-fA-F]{1,4}(?::[0-9a-fA-F]{1,4})*)?(?![.:\\w])"
+              // Compressed at start: ::tail — e.g. ::1, ::ffff:10.0.0.1
+              + "|(?<![.:\\w])::(?:[0-9a-fA-F]{1,4}(?::[0-9a-fA-F]{1,4})*)?(?![.:\\w])");
 
   private static final List<PatternLevel> PATTERNS =
       List.of(
@@ -41,6 +56,7 @@ public class DefaultDataScrubber implements DataScrubber {
           new PatternLevel(
               ScrubLevel.STRICT,
               Pattern.compile("\\b\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\b")),
+          new PatternLevel(ScrubLevel.STRICT, IPV6_PATTERN),
           new PatternLevel(
               ScrubLevel.STRICT, Pattern.compile("(?i)\\b\\d{3}[\\-.]?\\d{3}[\\-.]?\\d{4}\\b")));
 
