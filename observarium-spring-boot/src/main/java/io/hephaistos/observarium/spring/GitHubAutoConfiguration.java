@@ -38,7 +38,11 @@ public class GitHubAutoConfiguration {
     ObservariumProperties.GitHub github = properties.getGithub();
     GitHubConfig config =
         new GitHubConfig(
-            github.getToken(), github.getOwner(), github.getRepo(), github.getLabelPrefix());
+            github.getToken(),
+            github.getOwner(),
+            github.getRepo(),
+            github.getLabelPrefix(),
+            github.getBaseUrl());
     return new GitHubPostingService(config);
   }
 }

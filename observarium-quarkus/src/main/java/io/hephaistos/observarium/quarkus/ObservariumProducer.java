@@ -85,7 +85,8 @@ public class ObservariumProducer {
                                 () ->
                                     new IllegalStateException(
                                         "observarium.github.repo is required when github is enabled")),
-                        gh.labelPrefix());
+                        gh.labelPrefix(),
+                        gh.baseUrl().orElse(null));
                 services.add(new io.hephaistos.observarium.github.GitHubPostingService(ghConfig));
               } catch (NoClassDefFoundError e) {
                 log.warn(

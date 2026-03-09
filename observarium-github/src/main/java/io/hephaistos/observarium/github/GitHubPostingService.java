@@ -33,7 +33,6 @@ public class GitHubPostingService implements PostingService {
 
   private static final Logger log = LoggerFactory.getLogger(GitHubPostingService.class);
 
-  private static final String API_BASE = "https://api.github.com";
   private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
 
   private final GitHubConfig config;
@@ -76,7 +75,7 @@ public class GitHubPostingService implements PostingService {
   public DuplicateSearchResult findDuplicate(ExceptionEvent event) {
     String label = fingerprintLabel(event.fingerprint());
     String url =
-        API_BASE
+        config.baseUrl()
             + "/repos/"
             + config.owner()
             + "/"
@@ -130,7 +129,7 @@ public class GitHubPostingService implements PostingService {
    */
   @Override
   public PostingResult createIssue(ExceptionEvent event) {
-    String url = API_BASE + "/repos/" + config.owner() + "/" + config.repo() + "/issues";
+    String url = config.baseUrl() + "/repos/" + config.owner() + "/" + config.repo() + "/issues";
 
     JsonObject requestBody = new JsonObject();
     requestBody.addProperty("title", formatter.title(event));
@@ -183,7 +182,7 @@ public class GitHubPostingService implements PostingService {
   @Override
   public PostingResult commentOnIssue(String externalIssueId, ExceptionEvent event) {
     String url =
-        API_BASE
+        config.baseUrl()
             + "/repos/"
             + config.owner()
             + "/"
@@ -242,11 +241,6 @@ public class GitHubPostingService implements PostingService {
   // Private helpers
   // -------------------------------------------------------------------------
 
-  static String fingerprintLabel(String fingerprint) {
-    String hash12 = fingerprint.length() > 12 ? fingerprint.substring(0, 12) : fingerprint;
-    return "observarium-" + hash12;
-  }
-
   private HttpRequest buildGetRequest(String url) {
     return HttpRequest.newBuilder()
         .uri(URI.create(url))
@@ -270,7 +264,7 @@ public class GitHubPostingService implements PostingService {
         .build();
   }
 
-  private static boolean isSuccess(int statusCode) {
+  private boolean isSuccess(int statusCode) {
     return statusCode >= 200 && statusCode < 300;
   }
 }

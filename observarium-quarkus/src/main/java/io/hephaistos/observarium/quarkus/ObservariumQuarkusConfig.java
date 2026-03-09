@@ -47,6 +47,8 @@ public interface ObservariumQuarkusConfig {
 
     @WithDefault("observarium")
     String labelPrefix();
+
+    Optional<String> baseUrl();
   }
 
   interface Jira {

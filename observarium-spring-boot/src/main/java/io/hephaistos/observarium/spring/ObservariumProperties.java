@@ -96,6 +96,7 @@ public class ObservariumProperties {
     private String owner;
     private String repo;
     private String labelPrefix = "observarium";
+    private String baseUrl;
 
     public boolean isEnabled() {
       return enabled;
@@ -135,6 +136,14 @@ public class ObservariumProperties {
 
     public void setLabelPrefix(String labelPrefix) {
       this.labelPrefix = labelPrefix;
+    }
+
+    public String getBaseUrl() {
+      return baseUrl;
+    }
+
+    public void setBaseUrl(String baseUrl) {
+      this.baseUrl = baseUrl;
     }
   }
 
