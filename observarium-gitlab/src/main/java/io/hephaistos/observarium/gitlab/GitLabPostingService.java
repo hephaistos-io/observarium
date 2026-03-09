@@ -220,12 +220,7 @@ public class GitLabPostingService implements PostingService {
     return URLEncoder.encode(config.projectId(), StandardCharsets.UTF_8);
   }
 
-  private static String fingerprintLabel(String fingerprint) {
-    String hash12 = fingerprint.length() > 12 ? fingerprint.substring(0, 12) : fingerprint;
-    return "observarium-" + hash12;
-  }
-
-  private static boolean isSuccess(int statusCode) {
+  private boolean isSuccess(int statusCode) {
     return statusCode >= 200 && statusCode < 300;
   }
 }

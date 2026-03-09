@@ -70,4 +70,19 @@ public interface PostingService {
    * @return a {@link PostingResult} indicating success or failure; never null
    */
   PostingResult commentOnIssue(String externalIssueId, ExceptionEvent event);
+
+  /**
+   * Derives a label from the event fingerprint for tagging issues in external trackers.
+   *
+   * <p>The label uses the first 12 characters of the fingerprint hash prefixed with {@code
+   * "observarium-"}, e.g. fingerprint {@code "abc123def456xyz"} produces label {@code
+   * "observarium-abc123def456"}.
+   *
+   * @param fingerprint the event fingerprint; never null
+   * @return the label string; never null
+   */
+  default String fingerprintLabel(String fingerprint) {
+    String hash = fingerprint.length() > 12 ? fingerprint.substring(0, 12) : fingerprint;
+    return "observarium-" + hash;
+  }
 }

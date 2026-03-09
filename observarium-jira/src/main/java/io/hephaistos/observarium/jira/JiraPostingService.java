@@ -33,9 +33,6 @@ public class JiraPostingService implements PostingService {
 
   private static final Logger log = LoggerFactory.getLogger(JiraPostingService.class);
 
-  /** Number of fingerprint characters used in the Jira label. */
-  private static final int FINGERPRINT_PREFIX_LENGTH = 12;
-
   private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(30);
 
   private final JiraConfig config;
@@ -329,7 +326,7 @@ public class JiraPostingService implements PostingService {
   }
 
   /** Returns {@code true} for any 2xx HTTP status code. */
-  private static boolean isSuccess(int statusCode) {
+  private boolean isSuccess(int statusCode) {
     return statusCode >= 200 && statusCode < 300;
   }
 
@@ -354,19 +351,5 @@ public class JiraPostingService implements PostingService {
    */
   private String browseUrl(String issueKey) {
     return config.baseUrl() + "/browse/" + issueKey;
-  }
-
-  /**
-   * Derives the fingerprint-based Jira label from the first {@value #FINGERPRINT_PREFIX_LENGTH}
-   * characters of the fingerprint hash.
-   *
-   * <p>Example: fingerprint {@code "abc123def456xyz"} → label {@code "observarium-abc123def456"}.
-   */
-  static String fingerprintLabel(String fingerprint) {
-    String prefix =
-        fingerprint.length() > FINGERPRINT_PREFIX_LENGTH
-            ? fingerprint.substring(0, FINGERPRINT_PREFIX_LENGTH)
-            : fingerprint;
-    return "observarium-" + prefix;
   }
 }
