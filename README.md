@@ -12,6 +12,147 @@ Observarium is an open-source exception tracking library for Java 21 that captur
 - **Framework-agnostic core** — plain Java builder API works in any runtime; optional thin integration modules for Spring Boot and Quarkus
 - **Bounded async queue** — a single background thread drains a configurable `ArrayBlockingQueue`; the JVM shuts it down cleanly on exit
 
+## Architecture
+
+```mermaid
+classDiagram
+    class Observarium {
+        +captureException(Throwable) CompletableFuture
+        +captureException(Throwable, Severity) CompletableFuture
+        +captureException(Throwable, Severity, Map) CompletableFuture
+        +config() ObservariumConfig
+        +shutdown()
+    }
+
+    class ObservariumExceptionHandler {
+        +uncaughtException(Thread, Throwable)
+        +install(Observarium)$
+    }
+
+    class ExceptionProcessor {
+        +process(Throwable, Severity, Map, ...) List~PostingResult~
+    }
+
+    class ExceptionFingerprinter {
+        <<interface>>
+        +fingerprint(Throwable) String
+    }
+    class DefaultExceptionFingerprinter {
+        +fingerprint(Throwable) String
+    }
+
+    class DataScrubber {
+        <<interface>>
+        +scrub(String) String
+    }
+    class DefaultDataScrubber {
+        -scrubLevel ScrubLevel
+        +scrub(String) String
+    }
+
+    class TraceContextProvider {
+        <<interface>>
+        +getTraceId() String
+        +getSpanId() String
+    }
+    class MdcTraceContextProvider {
+        +getTraceId() String
+        +getSpanId() String
+    }
+
+    class ExceptionEvent {
+        <<record>>
+        fingerprint String
+        exceptionClass String
+        message String
+        stackTrace List~String~
+        rawStackTrace String
+        severity Severity
+        timestamp Instant
+        threadName String
+        traceId String
+        spanId String
+        tags Map
+        extra Map
+    }
+
+    class Severity {
+        <<enumeration>>
+        INFO
+        WARNING
+        ERROR
+        FATAL
+    }
+
+    class PostingService {
+        <<interface>>
+        +name() String
+        +findDuplicate(ExceptionEvent) DuplicateSearchResult
+        +createIssue(ExceptionEvent) PostingResult
+        +commentOnIssue(String, ExceptionEvent) PostingResult
+        +fingerprintLabel(String) String
+    }
+
+    class IssueFormatter {
+        <<interface>>
+        +fingerprintMarker(String) String
+        +title(ExceptionEvent) String
+        +markdownBody(ExceptionEvent) String
+        +markdownComment(ExceptionEvent) String
+    }
+    class DefaultIssueFormatter {
+        +fingerprintMarker(String) String
+        +title(ExceptionEvent) String
+        +markdownBody(ExceptionEvent) String
+        +markdownComment(ExceptionEvent) String
+    }
+
+    class ObservariumConfig {
+        <<record>>
+        scrubLevel ScrubLevel
+        postingServiceCount int
+    }
+
+    class ScrubLevel {
+        <<enumeration>>
+        NONE
+        BASIC
+        STRICT
+    }
+
+    class PostingResult {
+        <<record>>
+        success boolean
+        externalIssueId String
+        url String
+        errorMessage String
+    }
+    class DuplicateSearchResult {
+        <<record>>
+        found boolean
+        externalIssueId String
+        url String
+    }
+
+    ObservariumExceptionHandler --> Observarium : delegates to
+    Observarium --> ExceptionProcessor
+    Observarium --> TraceContextProvider
+    Observarium --> ObservariumConfig
+    ObservariumConfig --> ScrubLevel
+    DefaultDataScrubber --> ScrubLevel
+    ExceptionProcessor --> ExceptionFingerprinter
+    ExceptionProcessor --> DataScrubber
+    ExceptionProcessor --> "1..*" PostingService : dispatches to
+    ExceptionProcessor ..> ExceptionEvent : creates
+    PostingService ..> DuplicateSearchResult : returns
+    PostingService ..> PostingResult : returns
+    ExceptionEvent --> Severity
+    DefaultExceptionFingerprinter ..|> ExceptionFingerprinter
+    DefaultDataScrubber ..|> DataScrubber
+    MdcTraceContextProvider ..|> TraceContextProvider
+    DefaultIssueFormatter ..|> IssueFormatter
+```
+
 ## Quick Start
 
 ### Plain Java
