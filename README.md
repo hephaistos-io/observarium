@@ -15,142 +15,48 @@ Observarium is an open-source exception tracking library for Java 21 that captur
 ## Architecture
 
 ```mermaid
-classDiagram
-    class Observarium {
-        +captureException(Throwable) CompletableFuture
-        +captureException(Throwable, Severity) CompletableFuture
-        +captureException(Throwable, Severity, Map) CompletableFuture
-        +config() ObservariumConfig
-        +shutdown()
-    }
+sequenceDiagram
+    autonumber
 
-    class ObservariumExceptionHandler {
-        +uncaughtException(Thread, Throwable)
-        +install(Observarium)$
-    }
+    Note over JVM,PostingService: Flow 1 — Unhandled exception (uncaught-exception handler)
 
-    class ExceptionProcessor {
-        +process(Throwable, Severity, Map, ...) List~PostingResult~
-    }
+    JVM->>ObservariumExceptionHandler: uncaughtException(thread, throwable)
+    ObservariumExceptionHandler->>Observarium: captureException(throwable, FATAL)
+    Note right of Observarium: captures traceId/spanId from MDC<br/>on calling thread before async handoff
+    Observarium-)ExceptionProcessor: submit to background queue
+    Note right of ObservariumExceptionHandler: blocks up to 5 s for delivery<br/>before JVM exits
 
-    class ExceptionFingerprinter {
-        <<interface>>
-        +fingerprint(Throwable) String
-    }
-    class DefaultExceptionFingerprinter {
-        +fingerprint(Throwable) String
-    }
+    Note over Application,PostingService: Flow 2 — Manual capture
 
-    class DataScrubber {
-        <<interface>>
-        +scrub(String) String
-    }
-    class DefaultDataScrubber {
-        -scrubLevel ScrubLevel
-        +scrub(String) String
-    }
+    Application->>Observarium: captureException(throwable[, severity[, tags]])
+    Note right of Observarium: captures traceId/spanId from MDC<br/>on calling thread before async handoff
+    Observarium-)ExceptionProcessor: submit to background queue
 
-    class TraceContextProvider {
-        <<interface>>
-        +getTraceId() String
-        +getSpanId() String
-    }
-    class MdcTraceContextProvider {
-        +getTraceId() String
-        +getSpanId() String
-    }
+    Note over ExceptionProcessor,PostingService: Shared processing pipeline (background worker thread)
 
-    class ExceptionEvent {
-        <<record>>
-        fingerprint String
-        exceptionClass String
-        message String
-        stackTrace List~String~
-        rawStackTrace String
-        severity Severity
-        timestamp Instant
-        threadName String
-        traceId String
-        spanId String
-        tags Map
-        extra Map
-    }
+    ExceptionProcessor->>ExceptionFingerprinter: fingerprint(throwable)
+    ExceptionFingerprinter-->>ExceptionProcessor: SHA-256 fingerprint string
 
-    class Severity {
-        <<enumeration>>
-        INFO
-        WARNING
-        ERROR
-        FATAL
-    }
+    ExceptionProcessor->>DataScrubber: scrub(message)
+    ExceptionProcessor->>DataScrubber: scrub(rawStackTrace)
+    DataScrubber-->>ExceptionProcessor: redacted strings
 
-    class PostingService {
-        <<interface>>
-        +name() String
-        +findDuplicate(ExceptionEvent) DuplicateSearchResult
-        +createIssue(ExceptionEvent) PostingResult
-        +commentOnIssue(String, ExceptionEvent) PostingResult
-        +fingerprintLabel(String) String
-    }
+    Note over ExceptionProcessor: builds ExceptionEvent record
 
-    class IssueFormatter {
-        <<interface>>
-        +fingerprintMarker(String) String
-        +title(ExceptionEvent) String
-        +markdownBody(ExceptionEvent) String
-        +markdownComment(ExceptionEvent) String
-    }
-    class DefaultIssueFormatter {
-        +fingerprintMarker(String) String
-        +title(ExceptionEvent) String
-        +markdownBody(ExceptionEvent) String
-        +markdownComment(ExceptionEvent) String
-    }
+    loop for each PostingService
+        ExceptionProcessor->>PostingService: findDuplicate(event)
+        PostingService-->>ExceptionProcessor: DuplicateSearchResult
 
-    class ObservariumConfig {
-        <<record>>
-        scrubLevel ScrubLevel
-        postingServiceCount int
-    }
+        alt duplicate found
+            ExceptionProcessor->>PostingService: commentOnIssue(issueId, event)
+            PostingService-->>ExceptionProcessor: PostingResult
+        else no duplicate
+            ExceptionProcessor->>PostingService: createIssue(event)
+            PostingService-->>ExceptionProcessor: PostingResult
+        end
+    end
 
-    class ScrubLevel {
-        <<enumeration>>
-        NONE
-        BASIC
-        STRICT
-    }
-
-    class PostingResult {
-        <<record>>
-        success boolean
-        externalIssueId String
-        url String
-        errorMessage String
-    }
-    class DuplicateSearchResult {
-        <<record>>
-        found boolean
-        externalIssueId String
-        url String
-    }
-
-    ObservariumExceptionHandler --> Observarium : delegates to
-    Observarium --> ExceptionProcessor
-    Observarium --> TraceContextProvider
-    Observarium --> ObservariumConfig
-    ObservariumConfig --> ScrubLevel
-    DefaultDataScrubber --> ScrubLevel
-    ExceptionProcessor --> ExceptionFingerprinter
-    ExceptionProcessor --> DataScrubber
-    ExceptionProcessor --> "1..*" PostingService : dispatches to
-    ExceptionProcessor ..> ExceptionEvent : creates
-    PostingService ..> DuplicateSearchResult : returns
-    PostingService ..> PostingResult : returns
-    ExceptionEvent --> Severity
-    DefaultExceptionFingerprinter ..|> ExceptionFingerprinter
-    DefaultDataScrubber ..|> DataScrubber
-    MdcTraceContextProvider ..|> TraceContextProvider
-    DefaultIssueFormatter ..|> IssueFormatter
+    ExceptionProcessor-->>Observarium: List~PostingResult~
 ```
 
 ## Quick Start
