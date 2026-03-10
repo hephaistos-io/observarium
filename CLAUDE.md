@@ -32,6 +32,15 @@ Package root: `io.hephaistos.observarium`
 - Posting modules use only `java.net.http.HttpClient` + Gson — no platform SDKs
 - The library must never disrupt the host application: all failures are caught and logged, never thrown
 
+## Work methodology
+
+- Never ignore issues, even if not caused by you
+- Always start work by analyzing and evaluating best fit implementations
+- Explicit definitions are the goal, implicit changes
+- Before creating a commit, always
+  - run a code review on your changes
+  - run `./gradlew check`
+
 ## Further reading
 
 - [README.md](README.md) — architecture diagram, quick start, module overview
