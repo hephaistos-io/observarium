@@ -412,8 +412,10 @@ class ExceptionProcessorTest {
         "Error message must reference the failing service name");
 
     PostingResult goodResult = results.get(1);
-    assertTrue(goodResult.success(), "Good service must still succeed after peer throws in createIssue");
-    assertEquals(1, goodSvc.createIssueCalls.size(), "Good service's createIssue must still be called");
+    assertTrue(
+        goodResult.success(), "Good service must still succeed after peer throws in createIssue");
+    assertEquals(
+        1, goodSvc.createIssueCalls.size(), "Good service's createIssue must still be called");
   }
 
   @Test
@@ -452,8 +454,11 @@ class ExceptionProcessorTest {
         "Error message must reference the failing service name");
 
     PostingResult goodResult = results.get(1);
-    assertTrue(goodResult.success(), "Good service must still succeed after peer throws in commentOnIssue");
-    assertEquals(1, goodSvc.createIssueCalls.size(), "Good service's createIssue must still be called");
+    assertTrue(
+        goodResult.success(),
+        "Good service must still succeed after peer throws in commentOnIssue");
+    assertEquals(
+        1, goodSvc.createIssueCalls.size(), "Good service's createIssue must still be called");
   }
 
   @Test

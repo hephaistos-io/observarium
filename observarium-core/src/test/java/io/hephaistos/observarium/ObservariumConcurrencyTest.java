@@ -165,6 +165,7 @@ class ObservariumConcurrencyTest {
    * must never throw, regardless of queue state.
    *
    * <p>Strategy:
+   *
    * <ol>
    *   <li>Create an Observarium with queueCapacity(1) and a blocking posting service.
    *   <li>Submit one exception to occupy the single queue slot and block the worker thread.
@@ -210,13 +211,13 @@ class ObservariumConcurrencyTest {
       assertTrue(
           thrown.isEmpty(),
           "captureException must never throw on the caller's thread, even when the queue is full; "
-              + "got: " + thrown);
+              + "got: "
+              + thrown);
 
       // Unblock the worker so the first future can complete.
       releaseWorker.countDown();
 
-      List<PostingResult> firstResults =
-          firstFuture.get(5, java.util.concurrent.TimeUnit.SECONDS);
+      List<PostingResult> firstResults = firstFuture.get(5, java.util.concurrent.TimeUnit.SECONDS);
       assertNotNull(firstResults, "First future must resolve after the worker is unblocked");
       assertEquals(1, firstResults.size());
       assertTrue(firstResults.get(0).success(), "First exception must be processed successfully");

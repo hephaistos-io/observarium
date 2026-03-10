@@ -297,11 +297,13 @@ class ObservariumExceptionHandlerTest {
             "handler-test-thread");
 
     runner.start();
-    assertTrue(testDone.await(10, java.util.concurrent.TimeUnit.SECONDS),
+    assertTrue(
+        testDone.await(10, java.util.concurrent.TimeUnit.SECONDS),
         "Handler thread must complete within 10 s");
 
     assertFalse(threw.get(), "uncaughtException must not throw even when delivery is interrupted");
-    assertEquals(1, delegate.received.size(), "Delegate must still be called after delivery failure");
+    assertEquals(
+        1, delegate.received.size(), "Delegate must still be called after delivery failure");
   }
 
   /**
@@ -314,7 +316,8 @@ class ObservariumExceptionHandlerTest {
    */
   @Test
   @org.junit.jupiter.api.Timeout(15)
-  void uncaughtException_deliveryTimesOut_doesNotThrowAndCallsDelegate() throws InterruptedException {
+  void uncaughtException_deliveryTimesOut_doesNotThrowAndCallsDelegate()
+      throws InterruptedException {
     // The latch is never released, so createIssue blocks indefinitely and the
     // handler's 5-second .get() timeout will expire.
     CountDownLatch neverReleased = new CountDownLatch(1);
@@ -330,7 +333,8 @@ class ObservariumExceptionHandlerTest {
         new Thread(
             () -> {
               try {
-                handler.uncaughtException(Thread.currentThread(), new RuntimeException("slow crash"));
+                handler.uncaughtException(
+                    Thread.currentThread(), new RuntimeException("slow crash"));
               } catch (Exception unexpected) {
                 threw.set(true);
               } finally {
@@ -343,10 +347,12 @@ class ObservariumExceptionHandlerTest {
 
     runner.start();
     // Allow up to 10 s for the handler to time out (FATAL_WAIT_SECONDS=5) and return.
-    assertTrue(testDone.await(10, java.util.concurrent.TimeUnit.SECONDS),
+    assertTrue(
+        testDone.await(10, java.util.concurrent.TimeUnit.SECONDS),
         "Handler thread must return after the 5-second delivery timeout");
 
     assertFalse(threw.get(), "uncaughtException must not throw when delivery times out");
-    assertEquals(1, delegate.received.size(), "Delegate must still be called after delivery timeout");
+    assertEquals(
+        1, delegate.received.size(), "Delegate must still be called after delivery timeout");
   }
 }
