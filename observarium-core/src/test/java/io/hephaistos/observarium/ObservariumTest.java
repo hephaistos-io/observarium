@@ -391,7 +391,9 @@ class ObservariumTest {
       List<PostingResult> results = obs.captureException(new RuntimeException("boom")).get();
 
       assertEquals(
-          1, results.size(), "A single failure result must be returned when the fingerprinter throws");
+          1,
+          results.size(),
+          "A single failure result must be returned when the fingerprinter throws");
       assertFalse(results.get(0).success(), "Result must be a failure when fingerprinter throws");
       assertNotNull(results.get(0).errorMessage(), "Failure result must carry an error message");
     } finally {

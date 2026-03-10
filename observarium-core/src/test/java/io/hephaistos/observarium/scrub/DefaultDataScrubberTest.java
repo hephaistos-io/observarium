@@ -230,7 +230,8 @@ class DefaultDataScrubberTest {
     String result = scrubber.scrub(input);
 
     assertFalse(result.contains("hunter2"), "Password value must be redacted in stack trace");
-    assertFalse(result.contains("secret-refresh-xyz"), "Token value must be redacted in stack trace");
+    assertFalse(
+        result.contains("secret-refresh-xyz"), "Token value must be redacted in stack trace");
     assertTrue(result.contains(REDACTED), "Redacted marker must be present");
     // Stack frame lines must be preserved intact.
     assertTrue(result.contains("\tat com.example.db.DataSource.connect(DataSource.java:42)"));
@@ -254,7 +255,8 @@ class DefaultDataScrubberTest {
     assertFalse(result.contains("sk-12345"), "API key value must be redacted at STRICT level");
     assertFalse(result.contains("2001:db8::1"), "IPv6 must be redacted at STRICT level");
     assertTrue(result.contains(REDACTED));
-    assertTrue(result.contains("\tat com.example.Client.call(Client.java:33)"),
+    assertTrue(
+        result.contains("\tat com.example.Client.call(Client.java:33)"),
         "Stack frame lines must be preserved");
   }
 
@@ -284,7 +286,8 @@ class DefaultDataScrubberTest {
   void strictLevel_redactsIpv6_fullForm() {
     DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.STRICT);
     String result = scrubber.scrub("peer 2001:0db8:85a3:0000:0000:8a2e:0370:7334 connected");
-    assertFalse(result.contains("2001:0db8:85a3:0000:0000:8a2e:0370:7334"),
+    assertFalse(
+        result.contains("2001:0db8:85a3:0000:0000:8a2e:0370:7334"),
         "Full-form IPv6 must be redacted");
     assertTrue(result.contains(REDACTED));
   }
@@ -350,8 +353,7 @@ class DefaultDataScrubberTest {
     DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.STRICT);
     String input = "Aspect ratio 16:9:1 used";
     assertTrue(
-        scrubber.scrub(input).contains("16:9:1"),
-        "Numeric ratios must not be redacted as IPv6");
+        scrubber.scrub(input).contains("16:9:1"), "Numeric ratios must not be redacted as IPv6");
   }
 
   @Test
@@ -361,7 +363,8 @@ class DefaultDataScrubberTest {
     // it even though it could also be a C++/Rust scope-resolution expression.
     // Over-redaction is preferred at STRICT level over potential address leaks.
     String result = scrubber.scrub("called abc::def in module");
-    assertFalse(result.contains("abc::def"), "Hex scope tokens are treated as IPv6 at STRICT level");
+    assertFalse(
+        result.contains("abc::def"), "Hex scope tokens are treated as IPv6 at STRICT level");
     assertTrue(result.contains(REDACTED));
   }
 
