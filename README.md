@@ -158,9 +158,9 @@ classDiagram
 ### Plain Java
 
 ```java
-// 1. Add dependency (Gradle)
-// implementation 'io.hephaistos:observarium-core:0.9.0'
-// implementation 'io.hephaistos:observarium-github:0.9.0'
+// 1. Add dependency (Gradle — replace x.y.z with the latest release)
+// implementation 'io.hephaistos:observarium-core:x.y.z'
+// implementation 'io.hephaistos:observarium-github:x.y.z'
 
 import io.hephaistos.observarium.Observarium;
 import io.hephaistos.observarium.handler.ObservariumExceptionHandler;
@@ -183,16 +183,19 @@ obs.captureException(exception, Severity.ERROR, Map.of("user.id", "u-42"));
 ### Spring Boot
 
 ```xml
-<!-- Maven -->
+<!-- Maven — replace x.y.z with the latest release from https://github.com/hephaistos-io/observarium/releases -->
+<properties>
+  <observarium.version>x.y.z</observarium.version>
+</properties>
 <dependency>
   <groupId>io.hephaistos</groupId>
   <artifactId>observarium-spring-boot</artifactId>
-  <version>0.9.0</version>
+  <version>${observarium.version}</version>
 </dependency>
 <dependency>
   <groupId>io.hephaistos</groupId>
   <artifactId>observarium-github</artifactId>
-  <version>0.9.0</version>
+  <version>${observarium.version}</version>
 </dependency>
 ```
 
@@ -209,16 +212,19 @@ observarium:
 ### Quarkus
 
 ```xml
-<!-- Maven -->
+<!-- Maven — replace x.y.z with the latest release from https://github.com/hephaistos-io/observarium/releases -->
+<properties>
+  <observarium.version>x.y.z</observarium.version>
+</properties>
 <dependency>
   <groupId>io.hephaistos</groupId>
   <artifactId>observarium-quarkus</artifactId>
-  <version>0.9.0</version>
+  <version>${observarium.version}</version>
 </dependency>
 <dependency>
   <groupId>io.hephaistos</groupId>
   <artifactId>observarium-github</artifactId>
-  <version>0.9.0</version>
+  <version>${observarium.version}</version>
 </dependency>
 ```
 
