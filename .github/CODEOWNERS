@@ -1,0 +1,6 @@
+# All files require review from the maintainer.
+# Workflow files are listed explicitly so that changes to CI/CD always
+# require an approved review — preventing a fork PR from sneaking in
+# a pull_request_target trigger or secret-exfiltrating step.
+* @RicardoMonteiroSimoes
+.github/ @RicardoMonteiroSimoes

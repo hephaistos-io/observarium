@@ -1,5 +1,10 @@
 name: CI
 
+# IMPORTANT: This workflow intentionally uses `pull_request` (not `pull_request_target`).
+# `pull_request_target` runs in the base-repo context and exposes repository secrets to
+# fork-supplied code — never change this trigger without a full security review.
+# Fork PRs require manual approval before this workflow runs (configured in
+# Settings → Actions → General → "Fork pull request workflows").
 on:
   pull_request:
     branches: [main]
@@ -7,6 +12,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
 
     steps:
       - uses: actions/checkout@v4

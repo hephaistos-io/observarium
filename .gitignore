@@ -38,3 +38,8 @@ bin/
 
 ### Mac OS ###
 .DS_Store
+
+### Credentials — never commit these ###
+.env
+.env.*
+gradle.properties
