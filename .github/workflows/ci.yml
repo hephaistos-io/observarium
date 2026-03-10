@@ -1,13 +1,21 @@
 name: CI
 
+# IMPORTANT: This workflow intentionally uses `pull_request` (not `pull_request_target`).
+# `pull_request_target` runs in the base-repo context and exposes repository secrets to
+# fork-supplied code — never change this trigger without a full security review.
+# Fork PRs require manual approval before this workflow runs (configured in
+# Settings → Actions → General → "Fork pull request workflows").
 on:
   pull_request:
     branches: [main]
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
 
+  formatting:
+    name: Formatting (Spotless)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
@@ -18,5 +26,103 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Build and test
-        run: ./gradlew check
+      - name: Check formatting
+        run: ./gradlew spotlessCheck
+
+  static-analysis:
+    name: Static Analysis (PMD)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Run PMD
+        run: ./gradlew pmdMain
+
+  test:
+    name: Tests & Coverage
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Detect affected modules
+        id: modules
+        run: |
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          git fetch --depth=1 origin "$BASE_SHA"
+          CHANGED=$(git diff --name-only "$BASE_SHA" HEAD)
+
+          echo "Changed files:"
+          echo "$CHANGED"
+
+          # Core or root Gradle files changed → run everything
+          if echo "$CHANGED" | grep -qE \
+              "^observarium-core/|^build\.gradle$|^settings\.gradle$|^gradle/|^gradle\.properties$"; then
+            echo "Core or root Gradle files changed — running all module tests"
+            echo "tasks=jacocoTestCoverageVerification" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Build the affected module set, respecting test-time dependencies:
+          #   spring-boot and quarkus both have testImplementation on all posting modules,
+          #   so changing any posting module requires re-testing those two as well.
+          AFFECTED=""
+          add_module() {
+            local m="$1"
+            # Avoid duplicates
+            case " $AFFECTED " in *" $m "*) ;; *) AFFECTED="$AFFECTED $m" ;; esac
+          }
+
+          for posting_module in github jira gitlab email; do
+            if echo "$CHANGED" | grep -q "^observarium-${posting_module}/"; then
+              add_module "$posting_module"
+              add_module "spring-boot"
+              add_module "quarkus"
+            fi
+          done
+
+          for framework_module in spring-boot quarkus; do
+            if echo "$CHANGED" | grep -q "^observarium-${framework_module}/"; then
+              add_module "$framework_module"
+            fi
+          done
+
+          AFFECTED="${AFFECTED# }"  # trim leading space
+
+          if [ -z "$AFFECTED" ]; then
+            echo "No module changes detected — skipping tests"
+            echo "tasks=" >> "$GITHUB_OUTPUT"
+          else
+            TASKS=""
+            for module in $AFFECTED; do
+              TASKS="$TASKS :observarium-${module}:jacocoTestCoverageVerification"
+            done
+            TASKS="${TASKS# }"
+            echo "Affected modules: $AFFECTED"
+            echo "tasks=$TASKS" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run tests and coverage
+        if: steps.modules.outputs.tasks != ''
+        run: ./gradlew ${{ steps.modules.outputs.tasks }}
+
+      - name: No module tests to run
+        if: steps.modules.outputs.tasks == ''
+        run: echo "No Java module changes detected — test job skipped."
