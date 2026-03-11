@@ -327,7 +327,7 @@ class GitLabPostingServiceTest {
 
   @Test
   @SuppressWarnings("unchecked")
-  void commentOnIssue_returnsSuccess_withNoteId() throws Exception {
+  void commentOnIssue_returnsSuccess_withIssueId() throws Exception {
     String responseBody =
         """
                 {
@@ -347,8 +347,8 @@ class GitLabPostingServiceTest {
     PostingResult result = service.commentOnIssue("5", buildEvent("SomeException", "boom"));
 
     assertTrue(result.success());
-    assertEquals("888", result.externalIssueId());
-    // GitLab notes have no dedicated URL in the response; url() is null
+    // commentOnIssue returns the issue IID that was passed in, consistent with GitHub and Jira
+    assertEquals("5", result.externalIssueId());
     assertNull(result.url());
   }
 
@@ -374,12 +374,21 @@ class GitLabPostingServiceTest {
     PostingResult result = service.commentOnIssue("10", buildEvent("SomeException", "boom"));
 
     assertTrue(result.success());
-    assertEquals("42", result.externalIssueId());
+    // commentOnIssue returns the issue IID that was passed in, consistent with GitHub and Jira
+    assertEquals("10", result.externalIssueId());
   }
 
   // -------------------------------------------------------------------------
   // commentOnIssue() — error paths
   // -------------------------------------------------------------------------
+
+  @Test
+  void commentOnIssue_throwsNullPointerException_whenExternalIssueIdIsNull() {
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    ExceptionEvent event = buildEvent("SomeException", "boom");
+    assertThrows(NullPointerException.class, () -> service.commentOnIssue(null, event));
+  }
 
   @Test
   @SuppressWarnings("unchecked")

@@ -29,7 +29,7 @@ import org.slf4j.LoggerFactory;
  * <p>All communication with Jira uses the v3 REST API and Basic authentication ({@code
  * username:apiToken} encoded as Base64).
  */
-public class JiraPostingService implements PostingService {
+public class JiraPostingService implements PostingService, AutoCloseable {
 
   private static final Logger log = LoggerFactory.getLogger(JiraPostingService.class);
 
@@ -179,6 +179,7 @@ public class JiraPostingService implements PostingService {
    */
   @Override
   public PostingResult commentOnIssue(String externalIssueId, ExceptionEvent event) {
+    java.util.Objects.requireNonNull(externalIssueId, "externalIssueId must not be null");
     String commentText = formatter.markdownComment(event);
     JsonObject body = buildCommentBody(commentText);
     String url = config.baseUrl() + "/rest/api/3/issue/" + externalIssueId + "/comment";
@@ -360,5 +361,10 @@ public class JiraPostingService implements PostingService {
    */
   private String browseUrl(String issueKey) {
     return config.baseUrl() + "/browse/" + issueKey;
+  }
+
+  @Override
+  public void close() {
+    httpClient.close();
   }
 }

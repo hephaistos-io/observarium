@@ -115,6 +115,20 @@ class GitHubPostingServiceTest {
         () -> new GitHubConfig("tok", "owner", "   ", "observarium", null));
   }
 
+  @Test
+  void config_stripsTrailingSlashFromBaseUrl() {
+    GitHubConfig config =
+        new GitHubConfig("tok", "owner", "repo", null, "https://ghe.example.com/api/v3/");
+    assertEquals("https://ghe.example.com/api/v3", config.baseUrl());
+  }
+
+  @Test
+  void config_stripsMultipleTrailingSlashesFromBaseUrl() {
+    GitHubConfig config =
+        new GitHubConfig("tok", "owner", "repo", null, "https://ghe.example.com/api/v3///");
+    assertEquals("https://ghe.example.com/api/v3", config.baseUrl());
+  }
+
   // -------------------------------------------------------------------------
   // GitHubPostingService.name() test
   // -------------------------------------------------------------------------
@@ -372,6 +386,15 @@ class GitHubPostingServiceTest {
     assertTrue(result.errorMessage().contains("interrupted"));
     // Clear the interrupt flag set by the service so it does not bleed into other tests
     Thread.interrupted();
+  }
+
+  @Test
+  void commentOnIssue_throwsNullPointerException_whenExternalIssueIdIsNull() {
+    GitHubPostingService service =
+        new GitHubPostingService(
+            GitHubConfig.of("tok", "owner", "repo"), mockHttpClient, new DefaultIssueFormatter());
+    ExceptionEvent event = buildEvent("MyException", "oops");
+    assertThrows(NullPointerException.class, () -> service.commentOnIssue(null, event));
   }
 
   @Test

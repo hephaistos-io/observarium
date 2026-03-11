@@ -232,7 +232,8 @@ class GitLabPostingServiceWireMockTest {
     PostingResult result = buildService(wmInfo).commentOnIssue("5", buildEvent());
 
     assertTrue(result.success());
-    assertEquals("101", result.externalIssueId());
+    // commentOnIssue returns the issue IID that was passed in, consistent with GitHub and Jira
+    assertEquals("5", result.externalIssueId());
     assertNull(result.errorMessage());
   }
 
