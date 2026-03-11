@@ -157,12 +157,8 @@ class ObservariumConcurrencyTest {
   }
 
   /**
-   * When the queue is full, new submissions are dropped (the rejection handler logs and returns
-   * without throwing). The caller must not receive an exception on its thread, and the returned
-   * future must resolve — either with a success result (if the task was accepted) or a failure
-   * result (if the task was dropped and the future never completes normally, in which case the
-   * queue-full drop means the future is abandoned). The key contract is: captureException() itself
-   * must never throw, regardless of queue state.
+   * When the queue is full, new submissions are dropped and the returned future completes
+   * immediately with a failure result. The caller must not receive an exception on its thread.
    *
    * <p>Strategy:
    *
@@ -171,6 +167,7 @@ class ObservariumConcurrencyTest {
    *   <li>Submit one exception to occupy the single queue slot and block the worker thread.
    *   <li>Submit several more exceptions while the queue is full. These are dropped.
    *   <li>Verify none of those captureException() calls threw.
+   *   <li>Verify dropped futures complete with a failure result (not hang forever).
    *   <li>Unblock the worker, verify the first future resolves successfully.
    * </ol>
    */
@@ -214,7 +211,25 @@ class ObservariumConcurrencyTest {
               + "got: "
               + thrown);
 
-      // Unblock the worker so the first future can complete.
+      // Some futures may have been queued (not rejected), so they won't be done yet.
+      // The truly rejected ones must be completed immediately with a failure result.
+      long rejectedCount = droppedFutures.stream().filter(CompletableFuture::isDone).count();
+      assertTrue(
+          rejectedCount > 0,
+          "At least some overflow futures must be rejected immediately when the queue is full");
+
+      for (CompletableFuture<List<PostingResult>> droppedFuture : droppedFutures) {
+        if (droppedFuture.isDone()) {
+          List<PostingResult> droppedResults =
+              droppedFuture.get(1, java.util.concurrent.TimeUnit.SECONDS);
+          assertFalse(
+              droppedResults.isEmpty(), "Rejected future must contain at least one failure result");
+          assertFalse(
+              droppedResults.get(0).success(), "Rejected result must be a failure, not a success");
+        }
+      }
+
+      // Unblock the worker so the first future and any queued futures can complete.
       releaseWorker.countDown();
 
       List<PostingResult> firstResults = firstFuture.get(5, java.util.concurrent.TimeUnit.SECONDS);
@@ -228,25 +243,24 @@ class ObservariumConcurrencyTest {
   }
 
   /**
-   * After shutdown(), calling captureException() must not throw on the calling thread.
-   *
-   * <p>The executor's custom rejection handler silently drops new submissions after shutdown, so
-   * the returned future may never complete (the task was never queued). The contract being verified
-   * here is solely that the call itself does not propagate a {@link
-   * java.util.concurrent.RejectedExecutionException} or any other exception to the caller — the
-   * library must fail quietly, not loudly.
+   * After shutdown(), calling captureException() must not throw on the calling thread and the
+   * returned future must complete immediately with a failure result.
    */
   @Test
-  void captureException_afterShutdown_doesNotThrow() {
+  void captureException_afterShutdown_doesNotThrow() throws Exception {
     LatchedPostingService svc = new LatchedPostingService();
     Observarium obs = Observarium.builder().addPostingService(svc).build();
 
     obs.shutdown();
 
     // captureException must return without throwing; the event is silently dropped.
-    assertDoesNotThrow(
-        () -> obs.captureException(new RuntimeException("post-shutdown")),
-        "captureException after shutdown must not throw on the calling thread");
+    CompletableFuture<List<PostingResult>> future =
+        obs.captureException(new RuntimeException("post-shutdown"));
+
+    assertTrue(future.isDone(), "Future must be completed immediately after shutdown rejection");
+    List<PostingResult> results = future.get(1, java.util.concurrent.TimeUnit.SECONDS);
+    assertFalse(results.isEmpty(), "Must contain at least one failure result");
+    assertFalse(results.get(0).success(), "Result must be a failure after shutdown");
   }
 
   /**
