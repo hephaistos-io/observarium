@@ -33,10 +33,14 @@ observarium/
 ├── observarium-github/        # GitHub Issues posting service
 ├── observarium-jira/          # Jira Cloud posting service
 ├── observarium-gitlab/        # GitLab Issues posting service
-└── observarium-email/         # SMTP email posting service
+├── observarium-email/         # SMTP email posting service
+├── demo-spring/               # Spring Boot demo (GitHub + GitLab)
+└── demo-quarkus/              # Quarkus demo (Jira + Email)
 ```
 
 All posting modules depend only on `observarium-core`, `java.net.http`, and Gson. The framework modules (`spring-boot`, `quarkus`) are optional thin integrations.
+
+The `demo-*` modules are runnable example apps — they are included in Spotless and PMD checks but excluded from JaCoCo coverage enforcement and Maven publishing.
 
 ## Code quality
 
@@ -53,7 +57,7 @@ This runs the full pipeline for every module:
 | `compileJava` | Compilation |
 | `test` | Unit tests (JUnit 5) |
 | `jacocoTestReport` | Coverage report generation |
-| `jacocoTestCoverageVerification` | Coverage >= 80% instruction coverage (fails the build if not met) |
+| `jacocoTestCoverageVerification` | Coverage >= 80% instruction coverage (fails the build if not met; library modules only) |
 
 ### Coverage reports
 

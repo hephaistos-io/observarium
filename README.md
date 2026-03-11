@@ -115,6 +115,8 @@ observarium:
     token: ${GITHUB_TOKEN}
 ```
 
+See [`demo-spring/`](demo-spring/) for a runnable example with GitHub + GitLab posting services.
+
 ### Quarkus
 
 ```xml
@@ -142,6 +144,8 @@ observarium.github.repo=repo
 observarium.github.token=${GITHUB_TOKEN}
 ```
 
+See [`demo-quarkus/`](demo-quarkus/) for a runnable example with Jira + Email posting services.
+
 ## Modules
 
 | Module | Purpose |
@@ -153,6 +157,8 @@ observarium.github.token=${GITHUB_TOKEN}
 | `observarium-jira` | Jira Cloud / Data Center posting service |
 | `observarium-gitlab` | GitLab Issues posting service |
 | `observarium-email` | SMTP email posting service |
+| `demo-spring` | Spring Boot demo app (GitHub + GitLab) |
+| `demo-quarkus` | Quarkus demo app (Jira + Email) |
 
 All posting modules use the JDK built-in `java.net.http.HttpClient` and Gson — no platform SDKs, no framework-level transitive dependencies. This is intentional: none of the platforms ship official Java SDKs, and the community alternatives (hub4j for GitHub, gitlab4j, everit-org for Jira) pull in heavy stacks like Jersey or Apache Commons for three API calls. See [Posting Services](docs/posting-services.md#why-not-official-sdks) for the full rationale.
 
