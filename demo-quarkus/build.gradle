@@ -1,0 +1,15 @@
+plugins {
+    id 'io.quarkus'
+}
+
+dependencies {
+    implementation enforcedPlatform('io.quarkus.platform:quarkus-bom:3.32.3')
+    implementation project(':observarium-quarkus')
+    implementation project(':observarium-jira')
+    implementation project(':observarium-email')
+    implementation 'io.quarkus:quarkus-rest'
+
+    testImplementation 'io.quarkus:quarkus-junit5'
+    testImplementation 'io.rest-assured:rest-assured'
+    testImplementation 'org.assertj:assertj-core:3.26.3'
+}
