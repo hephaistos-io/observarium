@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
@@ -135,17 +136,14 @@ class ObservariumConcurrencyTest {
       startGun.countDown();
 
       // Wait for all threads to finish submitting (with a generous timeout).
-      assertTrue(
-          allSubmitted.await(5, java.util.concurrent.TimeUnit.SECONDS),
-          "All threads must submit within 5 s");
+      assertTrue(allSubmitted.await(5, TimeUnit.SECONDS), "All threads must submit within 5 s");
 
       // Now wait for all futures to complete so the executor has drained.
       List<CompletableFuture<List<PostingResult>>> snapshot;
       synchronized (futures) {
         snapshot = new ArrayList<>(futures);
       }
-      CompletableFuture.allOf(snapshot.toArray(new CompletableFuture[0]))
-          .get(5, java.util.concurrent.TimeUnit.SECONDS);
+      CompletableFuture.allOf(snapshot.toArray(new CompletableFuture[0])).get(5, TimeUnit.SECONDS);
 
       assertEquals(
           threadCount,
@@ -189,8 +187,7 @@ class ObservariumConcurrencyTest {
 
       // Wait until the worker is genuinely inside createIssue and blocked.
       assertTrue(
-          workerEntered.await(5, java.util.concurrent.TimeUnit.SECONDS),
-          "Worker must enter createIssue within 5 s");
+          workerEntered.await(5, TimeUnit.SECONDS), "Worker must enter createIssue within 5 s");
 
       // Submit more exceptions while the worker is blocked. Some or all will be dropped.
       // The critical assertion is that none of these calls throws.
@@ -220,8 +217,7 @@ class ObservariumConcurrencyTest {
 
       for (CompletableFuture<List<PostingResult>> droppedFuture : droppedFutures) {
         if (droppedFuture.isDone()) {
-          List<PostingResult> droppedResults =
-              droppedFuture.get(1, java.util.concurrent.TimeUnit.SECONDS);
+          List<PostingResult> droppedResults = droppedFuture.get(1, TimeUnit.SECONDS);
           assertFalse(
               droppedResults.isEmpty(), "Rejected future must contain at least one failure result");
           assertFalse(
@@ -232,7 +228,7 @@ class ObservariumConcurrencyTest {
       // Unblock the worker so the first future and any queued futures can complete.
       releaseWorker.countDown();
 
-      List<PostingResult> firstResults = firstFuture.get(5, java.util.concurrent.TimeUnit.SECONDS);
+      List<PostingResult> firstResults = firstFuture.get(5, TimeUnit.SECONDS);
       assertNotNull(firstResults, "First future must resolve after the worker is unblocked");
       assertEquals(1, firstResults.size());
       assertTrue(firstResults.get(0).success(), "First exception must be processed successfully");
@@ -258,7 +254,7 @@ class ObservariumConcurrencyTest {
         obs.captureException(new RuntimeException("post-shutdown"));
 
     assertTrue(future.isDone(), "Future must be completed immediately after shutdown rejection");
-    List<PostingResult> results = future.get(1, java.util.concurrent.TimeUnit.SECONDS);
+    List<PostingResult> results = future.get(1, TimeUnit.SECONDS);
     assertFalse(results.isEmpty(), "Must contain at least one failure result");
     assertFalse(results.get(0).success(), "Result must be a failure after shutdown");
   }
@@ -291,8 +287,7 @@ class ObservariumConcurrencyTest {
 
     // Wait until the worker has entered createIssue and is genuinely in-flight.
     assertTrue(
-        workerEntered.await(5, java.util.concurrent.TimeUnit.SECONDS),
-        "Worker must enter createIssue within 5 s");
+        workerEntered.await(5, TimeUnit.SECONDS), "Worker must enter createIssue within 5 s");
 
     // Shutdown while the worker is mid-task. A well-behaved executor must not abort it.
     obs.shutdown();
@@ -301,7 +296,7 @@ class ObservariumConcurrencyTest {
     releaseWorker.countDown();
 
     // The future must complete successfully — the in-flight task was not abandoned.
-    List<PostingResult> results = future.get(5, java.util.concurrent.TimeUnit.SECONDS);
+    List<PostingResult> results = future.get(5, TimeUnit.SECONDS);
 
     assertNotNull(results, "Future must complete with a non-null result after shutdown");
     assertEquals(1, results.size());

@@ -1,5 +1,7 @@
 package io.hephaistos.observarium.jira;
 
+import static java.util.Objects.requireNonNull;
+
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -59,10 +61,10 @@ public class JiraPostingService implements PostingService, AutoCloseable {
   /** Package-private constructor used in tests to inject a custom {@link HttpClient}. */
   JiraPostingService(
       JiraConfig config, HttpClient httpClient, Gson gson, IssueFormatter formatter) {
-    this.config = java.util.Objects.requireNonNull(config, "config must not be null");
-    this.httpClient = java.util.Objects.requireNonNull(httpClient, "httpClient must not be null");
-    this.gson = java.util.Objects.requireNonNull(gson, "gson must not be null");
-    this.formatter = java.util.Objects.requireNonNull(formatter, "formatter must not be null");
+    this.config = requireNonNull(config, "config must not be null");
+    this.httpClient = requireNonNull(httpClient, "httpClient must not be null");
+    this.gson = requireNonNull(gson, "gson must not be null");
+    this.formatter = requireNonNull(formatter, "formatter must not be null");
   }
 
   @Override
@@ -179,7 +181,7 @@ public class JiraPostingService implements PostingService, AutoCloseable {
    */
   @Override
   public PostingResult commentOnIssue(String externalIssueId, ExceptionEvent event) {
-    java.util.Objects.requireNonNull(externalIssueId, "externalIssueId must not be null");
+    requireNonNull(externalIssueId, "externalIssueId must not be null");
     String commentText = formatter.markdownComment(event);
     JsonObject body = buildCommentBody(commentText);
     String url = config.baseUrl() + "/rest/api/3/issue/" + externalIssueId + "/comment";

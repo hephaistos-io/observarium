@@ -1,11 +1,14 @@
 package io.hephaistos.observarium.email;
 
+import static java.util.Objects.requireNonNull;
+
 import io.hephaistos.observarium.event.ExceptionEvent;
 import io.hephaistos.observarium.posting.DefaultIssueFormatter;
 import io.hephaistos.observarium.posting.DuplicateSearchResult;
 import io.hephaistos.observarium.posting.IssueFormatter;
 import io.hephaistos.observarium.posting.PostingResult;
 import io.hephaistos.observarium.posting.PostingService;
+import jakarta.mail.Authenticator;
 import jakarta.mail.Message;
 import jakarta.mail.PasswordAuthentication;
 import jakarta.mail.Session;
@@ -48,8 +51,8 @@ public class EmailPostingService implements PostingService {
   }
 
   public EmailPostingService(EmailConfig config, IssueFormatter formatter) {
-    this.config = java.util.Objects.requireNonNull(config, "config must not be null");
-    this.formatter = java.util.Objects.requireNonNull(formatter, "formatter must not be null");
+    this.config = requireNonNull(config, "config must not be null");
+    this.formatter = requireNonNull(formatter, "formatter must not be null");
     this.session = buildSession();
   }
 
@@ -121,10 +124,10 @@ public class EmailPostingService implements PostingService {
       props.put("mail.smtp.starttls.required", "true");
     }
 
-    jakarta.mail.Authenticator authenticator = null;
+    Authenticator authenticator = null;
     if (config.auth()) {
       authenticator =
-          new jakarta.mail.Authenticator() {
+          new Authenticator() {
             @Override
             protected PasswordAuthentication getPasswordAuthentication() {
               return new PasswordAuthentication(config.username(), config.password());

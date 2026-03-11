@@ -11,6 +11,7 @@ import io.hephaistos.observarium.posting.PostingService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -297,9 +298,7 @@ class ObservariumExceptionHandlerTest {
             "handler-test-thread");
 
     runner.start();
-    assertTrue(
-        testDone.await(10, java.util.concurrent.TimeUnit.SECONDS),
-        "Handler thread must complete within 10 s");
+    assertTrue(testDone.await(10, TimeUnit.SECONDS), "Handler thread must complete within 10 s");
 
     assertFalse(threw.get(), "uncaughtException must not throw even when delivery is interrupted");
     assertEquals(
@@ -348,7 +347,7 @@ class ObservariumExceptionHandlerTest {
     runner.start();
     // Allow up to 10 s for the handler to time out (FATAL_WAIT_SECONDS=5) and return.
     assertTrue(
-        testDone.await(10, java.util.concurrent.TimeUnit.SECONDS),
+        testDone.await(10, TimeUnit.SECONDS),
         "Handler thread must return after the 5-second delivery timeout");
 
     assertFalse(threw.get(), "uncaughtException must not throw when delivery times out");

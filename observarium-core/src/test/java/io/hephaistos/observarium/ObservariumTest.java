@@ -12,6 +12,7 @@ import io.hephaistos.observarium.trace.TraceContextProvider;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
 class ObservariumTest {
@@ -360,7 +361,7 @@ class ObservariumTest {
   @Test
   void builder_addScrubPattern_isForwardedToScrubber() throws Exception {
     // Pattern that redacts 4-digit numbers.
-    java.util.regex.Pattern digits = java.util.regex.Pattern.compile("\\d{4}");
+    Pattern digits = Pattern.compile("\\d{4}");
     CapturingPostingService svc = new CapturingPostingService();
     Observarium obs = Observarium.builder().addScrubPattern(digits).addPostingService(svc).build();
     try {

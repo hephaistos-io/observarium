@@ -1,5 +1,7 @@
 package io.hephaistos.observarium.github;
 
+import static java.util.Objects.requireNonNull;
+
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -53,10 +55,10 @@ public class GitHubPostingService implements PostingService, AutoCloseable {
 
   /** Package-private constructor for tests — allows injecting a mock/stub {@link HttpClient}. */
   GitHubPostingService(GitHubConfig config, HttpClient httpClient, IssueFormatter formatter) {
-    this.config = java.util.Objects.requireNonNull(config, "config must not be null");
-    this.httpClient = java.util.Objects.requireNonNull(httpClient, "httpClient must not be null");
+    this.config = requireNonNull(config, "config must not be null");
+    this.httpClient = requireNonNull(httpClient, "httpClient must not be null");
     this.gson = new Gson();
-    this.formatter = java.util.Objects.requireNonNull(formatter, "formatter must not be null");
+    this.formatter = requireNonNull(formatter, "formatter must not be null");
   }
 
   @Override
@@ -181,7 +183,7 @@ public class GitHubPostingService implements PostingService, AutoCloseable {
    */
   @Override
   public PostingResult commentOnIssue(String externalIssueId, ExceptionEvent event) {
-    java.util.Objects.requireNonNull(externalIssueId, "externalIssueId must not be null");
+    requireNonNull(externalIssueId, "externalIssueId must not be null");
     String url =
         config.baseUrl()
             + "/repos/"
