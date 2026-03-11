@@ -87,7 +87,8 @@ class EmailPostingServiceFactoryTest {
             "enabled", "true",
             "smtp-host", "smtp.example.com",
             "from", "alerts@example.com",
-            "to", "team@example.com");
+            "to", "team@example.com",
+            "auth", "false");
     Optional<PostingService> result = factory.create(config);
     assertThat(result).isPresent();
   }
@@ -104,6 +105,50 @@ class EmailPostingServiceFactoryTest {
     assertThatThrownBy(() -> factory.create(config))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("smtpPort");
+  }
+
+  @Test
+  void create_authFalse_allowsMissingCredentials() {
+    // When auth=false the factory must not require username/password.
+    Map<String, String> config =
+        Map.of(
+            "enabled", "true",
+            "smtp-host", "smtp.example.com",
+            "from", "alerts@example.com",
+            "to", "team@example.com",
+            "auth", "false");
+    Optional<PostingService> result = factory.create(config);
+    assertThat(result).isPresent();
+    assertThat(result.get().name()).isEqualTo("email");
+  }
+
+  @Test
+  void create_authTrue_throwsWhenCredentialsMissing() {
+    // When auth=true (or absent, defaulting to true), missing credentials must throw.
+    Map<String, String> config =
+        Map.of(
+            "enabled", "true",
+            "smtp-host", "smtp.example.com",
+            "from", "alerts@example.com",
+            "to", "team@example.com",
+            "auth", "true");
+    assertThatThrownBy(() -> factory.create(config))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("username");
+  }
+
+  @Test
+  void create_authDefaultsToTrue_whenKeyAbsent() {
+    // Missing auth key must behave identically to auth=true.
+    Map<String, String> config =
+        Map.of(
+            "enabled", "true",
+            "smtp-host", "smtp.example.com",
+            "from", "alerts@example.com",
+            "to", "team@example.com");
+    assertThatThrownBy(() -> factory.create(config))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("username");
   }
 
   @Test
