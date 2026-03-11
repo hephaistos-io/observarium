@@ -5,18 +5,24 @@ import io.hephaistos.observarium.fingerprint.DefaultExceptionFingerprinter;
 import io.hephaistos.observarium.fingerprint.ExceptionFingerprinter;
 import io.hephaistos.observarium.handler.ObservariumExceptionHandler;
 import io.hephaistos.observarium.posting.PostingService;
+import io.hephaistos.observarium.posting.PostingServiceFactory;
 import io.hephaistos.observarium.scrub.DataScrubber;
 import io.hephaistos.observarium.scrub.DefaultDataScrubber;
 import io.hephaistos.observarium.trace.MdcTraceContextProvider;
 import io.hephaistos.observarium.trace.TraceContextProvider;
 import java.util.List;
+import java.util.Map;
+import java.util.ServiceLoader;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.context.properties.bind.Bindable;
+import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.env.Environment;
 
 /**
  * Spring Boot auto-configuration for the Observarium exception tracking library.
@@ -24,6 +30,10 @@ import org.springframework.context.annotation.Bean;
  * <p>Activated when {@code observarium.enabled=true} (or when the property is absent, since {@code
  * matchIfMissing=true}). All beans are marked {@link ConditionalOnMissingBean} so that applications
  * can override any component by declaring their own bean of the same type.
+ *
+ * <p>Posting services are discovered via {@link ServiceLoader} from the {@link
+ * PostingServiceFactory} SPI. Each posting module on the classpath registers its factory in {@code
+ * META-INF/services}, so no explicit dependency wiring is needed here.
  */
 @AutoConfiguration
 @EnableConfigurationProperties(ObservariumProperties.class)
@@ -49,9 +59,15 @@ public class ObservariumAutoConfiguration {
   }
 
   /**
-   * Creates the central {@link Observarium} instance, injecting all {@link PostingService} beans
-   * found in the application context (including those registered by the posting service
-   * auto-configurations in this module).
+   * Creates the central {@link Observarium} instance.
+   *
+   * <p>Posting services come from two sources:
+   *
+   * <ol>
+   *   <li>User-registered {@link PostingService} beans in the application context.
+   *   <li>{@link PostingServiceFactory} implementations discovered via {@link ServiceLoader},
+   *       configured from the Spring {@link Environment}.
+   * </ol>
    */
   @Bean
   @ConditionalOnMissingBean
@@ -60,6 +76,7 @@ public class ObservariumAutoConfiguration {
       ExceptionFingerprinter fingerprinter,
       DataScrubber scrubber,
       TraceContextProvider traceContextProvider,
+      Environment environment,
       @Autowired(required = false) List<PostingService> postingServices) {
 
     var builder =
@@ -71,6 +88,14 @@ public class ObservariumAutoConfiguration {
 
     if (postingServices != null) {
       postingServices.forEach(builder::addPostingService);
+    }
+
+    Binder binder = Binder.get(environment);
+    for (PostingServiceFactory factory : ServiceLoader.load(PostingServiceFactory.class)) {
+      String prefix = "observarium." + factory.id();
+      Map<String, String> props =
+          binder.bind(prefix, Bindable.mapOf(String.class, String.class)).orElse(Map.of());
+      factory.create(props).ifPresent(builder::addPostingService);
     }
 
     return builder.build();
@@ -91,9 +116,7 @@ public class ObservariumAutoConfiguration {
 
   /**
    * Registers the Spring MVC global exception handler as a bean when DispatcherServlet is on the
-   * classpath. The {@link ObservariumGlobalExceptionHandler} is a {@link
-   * org.springframework.web.bind.annotation.ControllerAdvice} so it must be registered as a bean to
-   * be picked up by Spring MVC, not listed in the auto-configuration imports file.
+   * classpath.
    */
   @Bean
   @ConditionalOnMissingBean
