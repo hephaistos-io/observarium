@@ -17,8 +17,10 @@ import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -61,33 +63,39 @@ public final class Observarium {
   private final TraceContextProvider traceProvider;
   private final ObservariumConfig config;
   private final ExecutorService executor;
+  private final List<PostingService> postingServices;
+  private final AtomicBoolean servicesClosed = new AtomicBoolean(false);
+  private final Thread shutdownHook;
 
   private Observarium(
       ExceptionProcessor processor,
       TraceContextProvider traceProvider,
       ObservariumConfig config,
-      ExecutorService executor) {
+      ExecutorService executor,
+      List<PostingService> postingServices) {
     this.processor = processor;
     this.traceProvider = traceProvider;
     this.config = config;
     this.executor = executor;
+    this.postingServices = postingServices;
 
-    Runtime.getRuntime()
-        .addShutdownHook(
-            new Thread(
-                () -> {
-                  executor.shutdown();
-                  try {
-                    if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
-                      log.warn("Observarium executor did not terminate in time, forcing shutdown");
-                      executor.shutdownNow();
-                    }
-                  } catch (InterruptedException exception) {
-                    executor.shutdownNow();
-                    Thread.currentThread().interrupt();
-                  }
-                },
-                "observarium-shutdown"));
+    this.shutdownHook =
+        new Thread(
+            () -> {
+              executor.shutdown();
+              try {
+                if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
+                  log.warn("Observarium executor did not terminate in time, forcing shutdown");
+                  executor.shutdownNow();
+                }
+              } catch (InterruptedException exception) {
+                executor.shutdownNow();
+                Thread.currentThread().interrupt();
+              }
+              closePostingServices();
+            },
+            "observarium-shutdown");
+    Runtime.getRuntime().addShutdownHook(shutdownHook);
   }
 
   /**
@@ -147,14 +155,24 @@ public final class Observarium {
     String traceId = traceProvider.getTraceId();
     String spanId = traceProvider.getSpanId();
 
-    return CompletableFuture.supplyAsync(
-            () -> processor.process(throwable, severity, tags, callerThreadName, traceId, spanId),
-            executor)
-        .exceptionally(
-            ex -> {
+    CompletableFuture<List<PostingResult>> future = new CompletableFuture<>();
+    try {
+      executor.execute(
+          () -> {
+            try {
+              future.complete(
+                  processor.process(throwable, severity, tags, callerThreadName, traceId, spanId));
+            } catch (Exception ex) {
               log.error("Failed to process exception", ex);
-              return List.of(PostingResult.failure("Processing failed: " + ex.getMessage()));
-            });
+              future.complete(
+                  List.of(PostingResult.failure("Processing failed: " + ex.getMessage())));
+            }
+          });
+    } catch (RejectedExecutionException ex) {
+      log.warn("Observarium queue full, dropping exception report");
+      future.complete(List.of(PostingResult.failure("Queue full, exception report dropped")));
+    }
+    return future;
   }
 
   /**
@@ -182,6 +200,27 @@ public final class Observarium {
    */
   public void shutdown() {
     executor.shutdown();
+    closePostingServices();
+    try {
+      Runtime.getRuntime().removeShutdownHook(shutdownHook);
+    } catch (IllegalStateException ignored) {
+      // JVM is already shutting down — removeShutdownHook throws ISE in that case.
+    }
+  }
+
+  private void closePostingServices() {
+    if (!servicesClosed.compareAndSet(false, true)) {
+      return;
+    }
+    for (PostingService service : postingServices) {
+      if (service instanceof AutoCloseable closeable) {
+        try {
+          closeable.close();
+        } catch (Exception e) {
+          log.warn("Failed to close posting service '{}'", service.name(), e);
+        }
+      }
+    }
   }
 
   public static Builder builder() {
@@ -373,11 +412,10 @@ public final class Observarium {
                 var thread = new Thread(runnable, "observarium-worker");
                 thread.setDaemon(true);
                 return thread;
-              },
-              (rejectedTask, rejectedExecutor) ->
-                  log.warn("Observarium queue full, dropping exception report"));
+              });
 
-      return new Observarium(processor, traceProvider, config, executor);
+      return new Observarium(
+          processor, traceProvider, config, executor, List.copyOf(postingServices));
     }
   }
 }

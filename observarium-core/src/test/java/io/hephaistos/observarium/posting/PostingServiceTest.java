@@ -56,4 +56,9 @@ class PostingServiceTest {
   void fingerprintLabel_alwaysStartsWithPrefix() {
     assertTrue(service.fingerprintLabel("anyfingerprint").startsWith("observarium-"));
   }
+
+  @Test
+  void fingerprintLabel_throwsOnNullFingerprint() {
+    assertThrows(NullPointerException.class, () -> service.fingerprintLabel(null));
+  }
 }

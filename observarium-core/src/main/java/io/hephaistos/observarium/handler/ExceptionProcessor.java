@@ -64,8 +64,9 @@ public class ExceptionProcessor {
    *     because MDC is thread-local; may be null
    * @param spanId distributed span ID from the originating thread's MDC context, captured eagerly
    *     because MDC is thread-local; may be null
-   * @return a non-null, non-empty list of results in the same order as the configured posting
-   *     services; never throws
+   * @return a non-null list of results in the same order as the configured posting services (empty
+   *     when no services are configured); may throw unchecked exceptions if the fingerprinter or
+   *     scrubber fails, which are handled by the caller
    */
   public List<PostingResult> process(
       Throwable throwable,

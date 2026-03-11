@@ -324,6 +324,18 @@ class ObservariumTest {
     assertDoesNotThrow(obs::shutdown);
   }
 
+  @Test
+  void shutdown_removesShutdownHook_noLeakOnRepeatedBuildAndShutdown() {
+    // Building many instances and shutting them down should not accumulate
+    // JVM shutdown hooks. This is a smoke test — if hooks leaked, the JVM
+    // would eventually run out of memory or slow down during shutdown.
+    for (int i = 0; i < 100; i++) {
+      Observarium obs = Observarium.builder().build();
+      obs.shutdown();
+    }
+    // If we reach here without error, no hook leak caused an ISE or OOM.
+  }
+
   // -----------------------------------------------------------------------
   // queueCapacity builder option (smoke test — just verifies it doesn't throw)
   // -----------------------------------------------------------------------

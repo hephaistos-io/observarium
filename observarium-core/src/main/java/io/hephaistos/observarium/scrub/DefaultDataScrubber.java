@@ -16,11 +16,8 @@ import java.util.regex.Pattern;
  *       addresses, and US-format phone numbers.
  * </ul>
  *
- * <p>At {@link ScrubLevel#NONE} no substitution is performed and the input is returned as-is.
- *
- * <p>Additional custom patterns supplied at construction time are always applied regardless of the
- * configured level (even at {@code NONE}), making it easy to add application-specific rules without
- * replacing the built-in set.
+ * <p>At {@link ScrubLevel#NONE} no substitution is performed at all — the input is returned as-is,
+ * including bypassing any custom additional patterns.
  */
 public class DefaultDataScrubber implements DataScrubber {
 
@@ -69,11 +66,11 @@ public class DefaultDataScrubber implements DataScrubber {
 
   /**
    * Creates a scrubber that applies the built-in patterns for the given level and also applies
-   * every pattern in {@code additionalPatterns} unconditionally.
+   * every pattern in {@code additionalPatterns} at levels other than {@code NONE}.
    *
-   * <p>Custom patterns are evaluated after the built-in ones and are applied even when {@code
-   * level} is {@link ScrubLevel#NONE}, so they act as mandatory redaction rules layered on top of
-   * the standard set.
+   * <p>Custom patterns are evaluated after the built-in ones at levels other than {@code NONE}. At
+   * {@link ScrubLevel#NONE} the input is returned unchanged and no patterns (built-in or custom)
+   * are applied.
    *
    * @param level the scrubbing aggressiveness for built-in patterns; never null
    * @param additionalPatterns extra patterns to always apply; never null, may be empty

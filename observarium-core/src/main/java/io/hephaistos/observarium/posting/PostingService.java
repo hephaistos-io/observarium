@@ -82,6 +82,7 @@ public interface PostingService {
    * @return the label string; never null
    */
   default String fingerprintLabel(String fingerprint) {
+    java.util.Objects.requireNonNull(fingerprint, "fingerprint must not be null");
     String hash = fingerprint.length() > 12 ? fingerprint.substring(0, 12) : fingerprint;
     return "observarium-" + hash;
   }
