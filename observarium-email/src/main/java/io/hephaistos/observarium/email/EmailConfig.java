@@ -20,6 +20,19 @@ public record EmailConfig(
     String password,
     boolean startTls) {
 
+  /** Compact canonical constructor that validates required fields. */
+  public EmailConfig {
+    if (smtpHost == null || smtpHost.isBlank()) {
+      throw new IllegalArgumentException("EmailConfig.smtpHost must not be blank");
+    }
+    if (from == null || from.isBlank()) {
+      throw new IllegalArgumentException("EmailConfig.from must not be blank");
+    }
+    if (to == null || to.isBlank()) {
+      throw new IllegalArgumentException("EmailConfig.to must not be blank");
+    }
+  }
+
   public EmailConfig(String smtpHost, String from, String to, String username, String password) {
     this(smtpHost, 587, from, to, username, password, true);
   }
