@@ -6,9 +6,15 @@ import com.vanniktech.maven.publish.SourcesJar
 plugins {
     id 'com.vanniktech.maven.publish' version '0.36.0' apply false
     id 'com.diffplug.spotless' version '8.3.0' apply false
+    id 'org.springframework.boot' version '3.4.3' apply false
+    id 'io.quarkus' version '3.32.3' apply false
 }
 
-subprojects {
+def libraryProjects = subprojects.findAll { !it.name.startsWith('demo-') }
+def demoProjects = subprojects.findAll { it.name.startsWith('demo-') }
+
+// ── Library modules ────────────────────────────────────────────────────────
+configure(libraryProjects) {
     apply plugin: 'java-library'
     apply plugin: 'jacoco'
     apply plugin: 'pmd'
@@ -157,5 +163,55 @@ subprojects {
                 developerConnection = 'scm:git:ssh://git@github.com/hephaistos-io/observarium.git'
             }
         }
+    }
+}
+
+// ── Demo modules (spotless + PMD only, no JaCoCo/publish) ──────────────────
+configure(demoProjects) {
+    apply plugin: 'java'
+    apply plugin: 'pmd'
+    apply plugin: 'com.diffplug.spotless'
+
+    group = 'io.hephaistos'
+    version = '0.8.11'
+
+    java {
+        toolchain {
+            languageVersion = JavaLanguageVersion.of(21)
+        }
+    }
+
+    pmd {
+        toolVersion = '7.16.0'
+        consoleOutput = true
+        ruleSets = []
+        ruleSetFiles = files("${rootDir}/config/pmd/ruleset.xml")
+    }
+
+    tasks.named('pmdTest') { enabled = false }
+
+    tasks.withType(Pmd).configureEach {
+        reports {
+            xml.required = true
+            html.required = true
+        }
+    }
+
+    spotless {
+        java {
+            googleJavaFormat('1.28.0')
+            importOrder()
+            removeUnusedImports()
+            trimTrailingWhitespace()
+            endWithNewline()
+        }
+    }
+
+    repositories {
+        mavenCentral()
+    }
+
+    test {
+        useJUnitPlatform()
     }
 }

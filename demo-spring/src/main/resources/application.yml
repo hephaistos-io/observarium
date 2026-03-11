@@ -1,0 +1,14 @@
+observarium:
+  enabled: true
+
+  github:
+    enabled: false
+    token: ${GITHUB_TOKEN:}
+    owner: ${GITHUB_OWNER:}
+    repo: ${GITHUB_REPO:}
+
+  gitlab:
+    enabled: false
+    base-url: ${GITLAB_BASE_URL:https://gitlab.com}
+    private-token: ${GITLAB_PRIVATE_TOKEN:}
+    project-id: ${GITLAB_PROJECT_ID:}
