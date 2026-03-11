@@ -113,7 +113,9 @@ class ObservariumProducerMultiServiceTest {
         "observarium.email.enabled", "true",
         "observarium.email.smtp-host", "smtp.example.com",
         "observarium.email.from", "alerts@example.com",
-        "observarium.email.to", "team@example.com");
+        "observarium.email.to", "team@example.com",
+        "observarium.email.username", "smtp-user",
+        "observarium.email.password", "smtp-pass");
 
     Observarium result = producer.observarium(emptyInstance);
 

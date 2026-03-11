@@ -107,6 +107,16 @@ class ObservariumProducerTest {
   }
 
   @Test
+  void observarium_fallsBackToBasicScrubLevel_whenScrubLevelConfigIsInvalid() {
+    when(config.scrubLevel()).thenReturn("NOT_A_VALID_LEVEL");
+
+    Observarium result = producer.observarium(emptyInstance);
+
+    assertThat(result).isNotNull();
+    assertThat(result.config().scrubLevel()).isEqualTo(ScrubLevel.BASIC);
+  }
+
+  @Test
   void observarium_noSpiServices_whenNoneEnabled() {
     // mpConfig returns no properties (set in @BeforeEach)
     Observarium result = producer.observarium(emptyInstance);

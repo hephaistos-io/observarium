@@ -8,6 +8,7 @@ import io.hephaistos.observarium.scrub.DefaultDataScrubber;
 import io.hephaistos.observarium.scrub.ScrubLevel;
 import io.hephaistos.observarium.trace.MdcTraceContextProvider;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Disposes;
 import jakarta.enterprise.inject.Instance;
 import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Inject;
@@ -46,7 +47,14 @@ public class ObservariumProducer {
       return Observarium.builder().build();
     }
 
-    ScrubLevel scrubLevel = ScrubLevel.valueOf(config.scrubLevel());
+    ScrubLevel scrubLevel;
+    try {
+      scrubLevel = ScrubLevel.valueOf(config.scrubLevel());
+    } catch (IllegalArgumentException e) {
+      log.warn(
+          "Invalid scrub level '{}' in configuration; falling back to BASIC", config.scrubLevel());
+      scrubLevel = ScrubLevel.BASIC;
+    }
 
     var builder =
         Observarium.builder()
@@ -68,6 +76,11 @@ public class ObservariumProducer {
     }
 
     return builder.build();
+  }
+
+  /** Shuts down the {@link Observarium} instance when the CDI context is destroyed. */
+  public void dispose(@Disposes Observarium observarium) {
+    observarium.shutdown();
   }
 
   /**
