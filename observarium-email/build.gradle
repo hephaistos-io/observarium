@@ -3,5 +3,6 @@ dependencies {
     implementation 'jakarta.mail:jakarta.mail-api:2.1.3'
     runtimeOnly 'org.eclipse.angus:angus-mail:2.0.4'
     testImplementation 'ch.qos.logback:logback-classic:1.5.32'
+    testImplementation 'org.assertj:assertj-core:3.26.3'
     testImplementation 'com.icegreen:greenmail-junit5:2.1.8'
 }
