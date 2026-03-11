@@ -211,6 +211,100 @@ class DefaultDataScrubberTest {
     assertEquals(input, scrubber.scrub(input));
   }
 
+  @ParameterizedTest
+  @ValueSource(strings = {"tokens=many", "secrets_manager=aws", "my_passwords=file.txt"})
+  void basicLevel_doesNotRedactKeywordAsPrefixOfLongerWord(String input) {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.BASIC);
+    // The keyword regex uses alternation (password|token|secret|...) which matches
+    // substrings. "tokens" starts with "token" and is followed by "s=", so the regex
+    // sees "token" + separator "s" — but "s" is not [:=]. Verify actual behavior.
+    String result = scrubber.scrub(input);
+    assertEquals(input, result);
+  }
+
+  // -----------------------------------------------------------------------
+  // BASIC level — multiple credentials on one line
+  // -----------------------------------------------------------------------
+
+  @Test
+  void basicLevel_redactsMultipleCredentialsOnSameLine() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.BASIC);
+    String input = "password=abc token=def secret=ghi";
+    String result = scrubber.scrub(input);
+    assertFalse(result.contains("abc"), "First credential value must be redacted");
+    assertFalse(result.contains("def"), "Second credential value must be redacted");
+    assertFalse(result.contains("ghi"), "Third credential value must be redacted");
+    assertEquals(3, countOccurrences(result, REDACTED), "Each credential must produce a marker");
+  }
+
+  // -----------------------------------------------------------------------
+  // BASIC level — special characters in values
+  // -----------------------------------------------------------------------
+
+  @Test
+  void basicLevel_redactsCredentialWithSpecialCharactersInValue() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.BASIC);
+    // Non-whitespace special chars are part of \S{1,200}
+    String input = "password=p@ss!w0rd#123";
+    assertEquals(REDACTED, scrubber.scrub(input));
+  }
+
+  @Test
+  void basicLevel_redactsCredentialWithBase64Value() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.BASIC);
+    String input = "token=dGVzdDp0ZXN0+abc/def==";
+    assertEquals(REDACTED, scrubber.scrub(input));
+  }
+
+  // -----------------------------------------------------------------------
+  // BASIC level — value length cap (200 chars)
+  // -----------------------------------------------------------------------
+
+  @Test
+  void basicLevel_valueLengthCappedAt200Characters() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.BASIC);
+    // The credential value regex is \S{1,200}, so a value longer than 200 non-whitespace
+    // chars should only match the first 200 characters, leaving the remainder in the output.
+    String longValue = "x".repeat(250);
+    String input = "token=" + longValue;
+    String result = scrubber.scrub(input);
+    assertTrue(result.startsWith(REDACTED), "First 200 chars of value must be redacted");
+    // The remaining 50 chars should survive
+    assertEquals(REDACTED + "x".repeat(50), result);
+  }
+
+  // -----------------------------------------------------------------------
+  // BASIC level — authorization keyword standalone
+  // -----------------------------------------------------------------------
+
+  @Test
+  void basicLevel_redactsAuthorizationWithEqualsSign() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.BASIC);
+    assertEquals(REDACTED, scrubber.scrub("authorization=Bearer_xyz"));
+  }
+
+  @Test
+  void basicLevel_redactsAuthorizationWithColonSeparator() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.BASIC);
+    String result = scrubber.scrub("Authorization: Basic dXNlcjpwYXNz");
+    assertTrue(result.contains(REDACTED));
+    assertFalse(result.contains("Authorization:"), "Key must be consumed by the match");
+  }
+
+  // -----------------------------------------------------------------------
+  // BASIC level — Bearer token with base64 padding
+  // -----------------------------------------------------------------------
+
+  @Test
+  void basicLevel_redactsBearerTokenWithBase64Padding() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.BASIC);
+    // The Bearer pattern includes =* for base64 padding
+    String input = "X-Auth: Bearer dGVzdA==";
+    String result = scrubber.scrub(input);
+    assertFalse(result.contains("dGVzdA=="), "Bearer token with padding must be redacted");
+    assertTrue(result.contains(REDACTED));
+  }
+
   // -----------------------------------------------------------------------
   // Multi-line / stack trace scrubbing
   // -----------------------------------------------------------------------
@@ -375,6 +469,60 @@ class DefaultDataScrubberTest {
     String result = scrubber.scrub(input);
     assertTrue(
         result.contains(REDACTED), "Phone number must be redacted at STRICT level: " + input);
+  }
+
+  // -----------------------------------------------------------------------
+  // STRICT level — false positive boundaries
+  // -----------------------------------------------------------------------
+
+  @Test
+  void strictLevel_redactsIpv4_invalidOctets() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.STRICT);
+    // 999.999.999.999 is not a valid IP but matches \d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}.
+    // The scrubber intentionally over-matches — it's a regex heuristic, not an IP parser.
+    String result = scrubber.scrub("address 999.999.999.999 logged");
+    assertTrue(result.contains(REDACTED), "Scrubber matches dotted-quad pattern even if invalid");
+  }
+
+  @Test
+  void strictLevel_doesNotRedactVersionStringsAsIpv4() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.STRICT);
+    // Version "1.2.3" has only three segments — the IPv4 regex requires exactly four.
+    String input = "Using library version 1.2.3 in production";
+    assertEquals(input, scrubber.scrub(input));
+  }
+
+  @ParameterizedTest
+  @ValueSource(
+      strings = {
+        "user+tag@example.com",
+        "first.last@company.co.uk",
+        "a@b.co",
+        "ALL_CAPS@DOMAIN.ORG"
+      })
+  void strictLevel_redactsVariousEmailFormats(String email) {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.STRICT);
+    String result = scrubber.scrub("contact " + email + " for info");
+    assertFalse(result.contains(email), "Email format '" + email + "' must be redacted");
+    assertTrue(result.contains(REDACTED));
+  }
+
+  @Test
+  void strictLevel_doesNotRedactPhoneNumber_tooFewDigits() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.STRICT);
+    // 9 digits — below the 10-digit phone pattern
+    String input = "Reference 123-456-789 is not a phone number";
+    assertEquals(input, scrubber.scrub(input));
+  }
+
+  @Test
+  void strictLevel_redactsMultipleIpAddressesOnSameLine() {
+    DefaultDataScrubber scrubber = new DefaultDataScrubber(ScrubLevel.STRICT);
+    String input = "Traffic from 10.0.0.1 to 192.168.1.1 blocked";
+    String result = scrubber.scrub(input);
+    assertFalse(result.contains("10.0.0.1"));
+    assertFalse(result.contains("192.168.1.1"));
+    assertEquals(2, countOccurrences(result, REDACTED));
   }
 
   @Test
