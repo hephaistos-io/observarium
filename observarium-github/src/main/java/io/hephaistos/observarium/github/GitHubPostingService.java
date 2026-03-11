@@ -29,7 +29,7 @@ import org.slf4j.LoggerFactory;
  * <p>All HTTP errors (non-2xx responses) are surfaced as {@link PostingResult#failure} values
  * rather than exceptions so that calling code can decide how to handle them.
  */
-public class GitHubPostingService implements PostingService {
+public class GitHubPostingService implements PostingService, AutoCloseable {
 
   private static final Logger log = LoggerFactory.getLogger(GitHubPostingService.class);
 
@@ -181,6 +181,7 @@ public class GitHubPostingService implements PostingService {
    */
   @Override
   public PostingResult commentOnIssue(String externalIssueId, ExceptionEvent event) {
+    java.util.Objects.requireNonNull(externalIssueId, "externalIssueId must not be null");
     String url =
         config.baseUrl()
             + "/repos/"
@@ -266,5 +267,10 @@ public class GitHubPostingService implements PostingService {
 
   private boolean isSuccess(int statusCode) {
     return statusCode >= 200 && statusCode < 300;
+  }
+
+  @Override
+  public void close() {
+    httpClient.close();
   }
 }

@@ -37,6 +37,7 @@ public record GitHubConfig(
     if (baseUrl == null || baseUrl.isBlank()) {
       baseUrl = DEFAULT_API_BASE;
     }
+    baseUrl = baseUrl.stripTrailing().replaceAll("/+$", "");
   }
 
   /** Convenience factory — uses the default API base URL and {@code "observarium"} label prefix. */

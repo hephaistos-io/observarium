@@ -430,6 +430,16 @@ class JiraPostingServiceTest {
   class CommentOnIssueTests {
 
     @Test
+    @DisplayName("throws NullPointerException when externalIssueId is null")
+    void throwsOnNullExternalIssueId() throws Exception {
+      ExceptionEvent event = buildEvent("fp-null-id");
+      JiraPostingService service =
+          new JiraPostingService(
+              config, mockClient(mockResponse(201, "{}")), new Gson(), new DefaultIssueFormatter());
+      assertThrows(NullPointerException.class, () -> service.commentOnIssue(null, event));
+    }
+
+    @Test
     @DisplayName("returns success when Jira accepts the comment (HTTP 201)")
     void returnsSuccessOn201() throws Exception {
       ExceptionEvent event = buildEvent("fp-comment");

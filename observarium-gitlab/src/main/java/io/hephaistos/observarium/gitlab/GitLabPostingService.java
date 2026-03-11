@@ -28,7 +28,7 @@ import org.slf4j.LoggerFactory;
  * fingerprint-specific label so that the project's issue list stays filterable at two
  * granularities.
  */
-public class GitLabPostingService implements PostingService {
+public class GitLabPostingService implements PostingService, AutoCloseable {
 
   private static final Logger log = LoggerFactory.getLogger(GitLabPostingService.class);
 
@@ -86,7 +86,7 @@ public class GitLabPostingService implements PostingService {
             + "/api/v4/projects/"
             + encodedProjectId()
             + "/issues?labels="
-            + label
+            + URLEncoder.encode(label, StandardCharsets.UTF_8)
             + "&state=opened";
 
     HttpRequest request =
@@ -177,6 +177,7 @@ public class GitLabPostingService implements PostingService {
    */
   @Override
   public PostingResult commentOnIssue(String externalIssueId, ExceptionEvent event) {
+    java.util.Objects.requireNonNull(externalIssueId, "externalIssueId must not be null");
     String url =
         config.baseUrl()
             + "/api/v4/projects/"
@@ -210,9 +211,7 @@ public class GitLabPostingService implements PostingService {
         return PostingResult.failure(msg);
       }
 
-      JsonObject note = gson.fromJson(response.body(), JsonObject.class);
-      String noteId = String.valueOf(note.get("id").getAsLong());
-      return PostingResult.success(noteId, null);
+      return PostingResult.success(externalIssueId, null);
 
     } catch (Exception e) {
       log.error("Failed to comment on GitLab issue {}", externalIssueId, e);
@@ -231,5 +230,10 @@ public class GitLabPostingService implements PostingService {
 
   private boolean isSuccess(int statusCode) {
     return statusCode >= 200 && statusCode < 300;
+  }
+
+  @Override
+  public void close() {
+    httpClient.close();
   }
 }
