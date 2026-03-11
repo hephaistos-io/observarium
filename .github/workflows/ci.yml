@@ -76,7 +76,7 @@ jobs:
           if echo "$CHANGED" | grep -qE \
               "^observarium-core/|^build\.gradle$|^settings\.gradle$|^gradle/|^gradle\.properties$"; then
             echo "Core or root Gradle files changed — running all module tests"
-            echo "tasks=jacocoTestCoverageVerification" >> "$GITHUB_OUTPUT"
+            echo "tasks=jacocoTestCoverageVerification :demo-spring:test :demo-quarkus:test" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -84,10 +84,14 @@ jobs:
           #   spring-boot and quarkus both have testImplementation on all posting modules,
           #   so changing any posting module requires re-testing those two as well.
           AFFECTED=""
+          DEMO_AFFECTED=""
           add_module() {
             local m="$1"
-            # Avoid duplicates
             case " $AFFECTED " in *" $m "*) ;; *) AFFECTED="$AFFECTED $m" ;; esac
+          }
+          add_demo() {
+            local m="$1"
+            case " $DEMO_AFFECTED " in *" $m "*) ;; *) DEMO_AFFECTED="$DEMO_AFFECTED $m" ;; esac
           }
 
           for posting_module in github jira gitlab email; do
@@ -104,9 +108,26 @@ jobs:
             fi
           done
 
-          AFFECTED="${AFFECTED# }"  # trim leading space
+          # Demo project dependencies:
+          #   demo-spring depends on spring-boot, github, gitlab
+          #   demo-quarkus depends on quarkus, jira, email
+          if echo "$CHANGED" | grep -q "^demo-spring/"; then
+            add_demo "demo-spring"
+          fi
+          if echo "$CHANGED" | grep -q "^demo-quarkus/"; then
+            add_demo "demo-quarkus"
+          fi
+          if echo "$CHANGED" | grep -qE "^observarium-(spring-boot|github|gitlab)/"; then
+            add_demo "demo-spring"
+          fi
+          if echo "$CHANGED" | grep -qE "^observarium-(quarkus|jira|email)/"; then
+            add_demo "demo-quarkus"
+          fi
 
-          if [ -z "$AFFECTED" ]; then
+          AFFECTED="${AFFECTED# }"
+          DEMO_AFFECTED="${DEMO_AFFECTED# }"
+
+          if [ -z "$AFFECTED" ] && [ -z "$DEMO_AFFECTED" ]; then
             echo "No module changes detected — skipping tests"
             echo "tasks=" >> "$GITHUB_OUTPUT"
           else
@@ -114,8 +135,12 @@ jobs:
             for module in $AFFECTED; do
               TASKS="$TASKS :observarium-${module}:jacocoTestCoverageVerification"
             done
+            for demo in $DEMO_AFFECTED; do
+              TASKS="$TASKS :${demo}:test"
+            done
             TASKS="${TASKS# }"
             echo "Affected modules: $AFFECTED"
+            echo "Affected demos: $DEMO_AFFECTED"
             echo "tasks=$TASKS" >> "$GITHUB_OUTPUT"
           fi
 
