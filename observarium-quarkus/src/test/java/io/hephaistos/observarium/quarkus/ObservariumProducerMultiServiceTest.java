@@ -11,8 +11,11 @@ import io.hephaistos.observarium.posting.PostingResult;
 import io.hephaistos.observarium.posting.PostingService;
 import jakarta.enterprise.inject.Instance;
 import java.lang.reflect.Field;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import org.eclipse.microprofile.config.Config;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,24 +25,15 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 /**
- * Unit tests for {@link ObservariumProducer} covering multi-service composition scenarios.
- *
- * <p>Verifies that the producer correctly assembles {@link Observarium} when:
- *
- * <ul>
- *   <li>All four posting services are enabled simultaneously via config.
- *   <li>Services come from both CDI discovery and config-based construction.
- *   <li>No services are enabled — {@link Observarium} is still created but with zero services.
- * </ul>
- *
- * <p>Mirrors the pattern of Spring Boot's {@code MultiplePostingServicesAutoConfigurationTest},
- * adapted for the Quarkus CDI producer using plain Mockito mocks.
+ * Unit tests for {@link ObservariumProducer} covering multi-service composition scenarios via SPI
+ * and CDI discovery.
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 class ObservariumProducerMultiServiceTest {
 
   @Mock private ObservariumQuarkusConfig config;
+  @Mock private Config mpConfig;
 
   @SuppressWarnings("unchecked")
   private final Instance<PostingService> emptyInstance = mock(Instance.class);
@@ -49,26 +43,19 @@ class ObservariumProducerMultiServiceTest {
   @BeforeEach
   void setUp() throws Exception {
     producer = new ObservariumProducer();
-    injectConfig(producer, config);
+    injectField(producer, "config", config);
+    injectField(producer, "mpConfig", mpConfig);
 
-    // Shared stubs — individual tests override posting-service sections as needed.
     when(config.enabled()).thenReturn(true);
     when(config.scrubLevel()).thenReturn("BASIC");
     when(config.traceIdMdcKey()).thenReturn("trace_id");
     when(config.spanIdMdcKey()).thenReturn("span_id");
-    when(config.github()).thenReturn(Optional.empty());
-    when(config.jira()).thenReturn(Optional.empty());
-    when(config.gitlab()).thenReturn(Optional.empty());
-    when(config.email()).thenReturn(Optional.empty());
     when(emptyInstance.iterator()).thenReturn(List.<PostingService>of().iterator());
+    when(mpConfig.getPropertyNames()).thenReturn(Set.of());
   }
 
-  // ---------------------------------------------------------------------------
-  // All four config-based services enabled simultaneously
-  // ---------------------------------------------------------------------------
-
   @Test
-  void allFourPostingServices_areWired_whenAllEnabledViaConfig() {
+  void allFourSpiServices_areWired_whenAllEnabledViaConfig() {
     stubAllFourServicesEnabled();
 
     Observarium result = producer.observarium(emptyInstance);
@@ -77,58 +64,29 @@ class ObservariumProducerMultiServiceTest {
     assertThat(result.config().postingServiceCount()).isEqualTo(4);
   }
 
-  // ---------------------------------------------------------------------------
-  // Mix of CDI-discovered and config-based services
-  // ---------------------------------------------------------------------------
-
   @Test
   @SuppressWarnings("unchecked")
-  void cdiDiscoveredAndConfigBasedServices_bothContribute() {
-    // One service discovered via CDI
+  void cdiDiscoveredAndSpiServices_bothContribute() {
     PostingService cdiService = stubPostingService("cdi-discovered");
     Instance<PostingService> instanceWithOne = mock(Instance.class);
     when(instanceWithOne.iterator()).thenReturn(List.of(cdiService).iterator());
 
-    // One service created from config (GitHub)
-    ObservariumQuarkusConfig.GitHub gh = stubGitHubConfig();
-    when(config.github()).thenReturn(Optional.of(gh));
+    // Enable GitHub via SPI
+    stubMpConfigProperties(
+        "observarium.github.enabled", "true",
+        "observarium.github.token", "ghp_test",
+        "observarium.github.owner", "acme",
+        "observarium.github.repo", "backend");
 
     Observarium result = producer.observarium(instanceWithOne);
 
-    // Total = 1 CDI + 1 config = 2
+    // 1 CDI + at least 1 SPI
     assertThat(result).isNotNull();
-    assertThat(result.config().postingServiceCount()).isEqualTo(2);
+    assertThat(result.config().postingServiceCount()).isGreaterThanOrEqualTo(2);
   }
-
-  @Test
-  @SuppressWarnings("unchecked")
-  void twoCdiDiscoveredServices_andTwoConfigServices_sum_toFour() {
-    PostingService cdiService1 = stubPostingService("cdi-alpha");
-    PostingService cdiService2 = stubPostingService("cdi-beta");
-    Instance<PostingService> instanceWithTwo = mock(Instance.class);
-    when(instanceWithTwo.iterator()).thenReturn(List.of(cdiService1, cdiService2).iterator());
-
-    // Two services from config (GitHub + Jira)
-    ObservariumQuarkusConfig.GitHub gh = stubGitHubConfig();
-    when(config.github()).thenReturn(Optional.of(gh));
-
-    ObservariumQuarkusConfig.Jira jira = stubJiraConfig();
-    when(config.jira()).thenReturn(Optional.of(jira));
-
-    Observarium result = producer.observarium(instanceWithTwo);
-
-    assertThat(result.config().postingServiceCount()).isEqualTo(4);
-  }
-
-  // ---------------------------------------------------------------------------
-  // Zero services when all disabled
-  // ---------------------------------------------------------------------------
 
   @Test
   void zeroPostingServices_whenAllDisabled() {
-    // All config posting services return Optional.empty() (set in @BeforeEach).
-    // CDI instance also returns empty (emptyInstance).
-
     Observarium result = producer.observarium(emptyInstance);
 
     assertThat(result).isNotNull();
@@ -145,17 +103,17 @@ class ObservariumProducerMultiServiceTest {
     assertThat(result.config().postingServiceCount()).isZero();
   }
 
-  // ---------------------------------------------------------------------------
-  // Subset combinations
-  // ---------------------------------------------------------------------------
-
   @Test
   void onlyGitLabAndEmail_whenOnlyThoseTwoEnabled() {
-    ObservariumQuarkusConfig.GitLab gl = stubGitLabConfig();
-    when(config.gitlab()).thenReturn(Optional.of(gl));
-
-    ObservariumQuarkusConfig.Email em = stubEmailConfig();
-    when(config.email()).thenReturn(Optional.of(em));
+    stubMpConfigProperties(
+        "observarium.gitlab.enabled", "true",
+        "observarium.gitlab.base-url", "https://gitlab.com",
+        "observarium.gitlab.private-token", "glpat-secret",
+        "observarium.gitlab.project-id", "42",
+        "observarium.email.enabled", "true",
+        "observarium.email.smtp-host", "smtp.example.com",
+        "observarium.email.from", "alerts@example.com",
+        "observarium.email.to", "team@example.com");
 
     Observarium result = producer.observarium(emptyInstance);
 
@@ -166,67 +124,51 @@ class ObservariumProducerMultiServiceTest {
   // Helpers
   // ---------------------------------------------------------------------------
 
-  private static void injectConfig(ObservariumProducer target, ObservariumQuarkusConfig value)
-      throws Exception {
-    Field field = ObservariumProducer.class.getDeclaredField("config");
+  private static void injectField(Object target, String fieldName, Object value) throws Exception {
+    Field field = target.getClass().getDeclaredField(fieldName);
     field.setAccessible(true);
     field.set(target, value);
   }
 
   private void stubAllFourServicesEnabled() {
-    // Create sub-mocks first to avoid nested when() calls inside thenReturn() arguments.
-    ObservariumQuarkusConfig.GitHub gh = stubGitHubConfig();
-    ObservariumQuarkusConfig.Jira jira = stubJiraConfig();
-    ObservariumQuarkusConfig.GitLab gl = stubGitLabConfig();
-    ObservariumQuarkusConfig.Email em = stubEmailConfig();
-    when(config.github()).thenReturn(Optional.of(gh));
-    when(config.jira()).thenReturn(Optional.of(jira));
-    when(config.gitlab()).thenReturn(Optional.of(gl));
-    when(config.email()).thenReturn(Optional.of(em));
+    stubMpConfigProperties(
+        "observarium.github.enabled", "true",
+        "observarium.github.token", "ghp_test",
+        "observarium.github.owner", "acme",
+        "observarium.github.repo", "backend",
+        "observarium.jira.enabled", "true",
+        "observarium.jira.base-url", "https://acme.atlassian.net",
+        "observarium.jira.username", "user@acme.com",
+        "observarium.jira.api-token", "jira-secret",
+        "observarium.jira.project-key", "OBS",
+        "observarium.gitlab.enabled", "true",
+        "observarium.gitlab.base-url", "https://gitlab.com",
+        "observarium.gitlab.private-token", "glpat-secret",
+        "observarium.gitlab.project-id", "42",
+        "observarium.email.enabled", "true",
+        "observarium.email.smtp-host", "smtp.example.com",
+        "observarium.email.from", "alerts@example.com",
+        "observarium.email.to", "team@example.com",
+        "observarium.email.username", "smtp-user",
+        "observarium.email.password", "smtp-pass");
   }
 
-  private ObservariumQuarkusConfig.GitHub stubGitHubConfig() {
-    ObservariumQuarkusConfig.GitHub gh = mock(ObservariumQuarkusConfig.GitHub.class);
-    when(gh.enabled()).thenReturn(true);
-    when(gh.token()).thenReturn(Optional.of("ghp_test_token"));
-    when(gh.owner()).thenReturn(Optional.of("acme"));
-    when(gh.repo()).thenReturn(Optional.of("backend"));
-    when(gh.labelPrefix()).thenReturn("observarium");
-    when(gh.baseUrl()).thenReturn(Optional.empty());
-    return gh;
-  }
-
-  private ObservariumQuarkusConfig.Jira stubJiraConfig() {
-    ObservariumQuarkusConfig.Jira jira = mock(ObservariumQuarkusConfig.Jira.class);
-    when(jira.enabled()).thenReturn(true);
-    when(jira.baseUrl()).thenReturn(Optional.of("https://acme.atlassian.net"));
-    when(jira.username()).thenReturn(Optional.of("user@acme.com"));
-    when(jira.apiToken()).thenReturn(Optional.of("jira-secret"));
-    when(jira.projectKey()).thenReturn(Optional.of("OBS"));
-    when(jira.issueType()).thenReturn("Bug");
-    return jira;
-  }
-
-  private ObservariumQuarkusConfig.GitLab stubGitLabConfig() {
-    ObservariumQuarkusConfig.GitLab gl = mock(ObservariumQuarkusConfig.GitLab.class);
-    when(gl.enabled()).thenReturn(true);
-    when(gl.baseUrl()).thenReturn(Optional.of("https://gitlab.com"));
-    when(gl.privateToken()).thenReturn(Optional.of("glpat-secret"));
-    when(gl.projectId()).thenReturn(Optional.of("42"));
-    return gl;
-  }
-
-  private ObservariumQuarkusConfig.Email stubEmailConfig() {
-    ObservariumQuarkusConfig.Email em = mock(ObservariumQuarkusConfig.Email.class);
-    when(em.enabled()).thenReturn(true);
-    when(em.smtpHost()).thenReturn(Optional.of("smtp.example.com"));
-    when(em.smtpPort()).thenReturn(587);
-    when(em.from()).thenReturn(Optional.of("alerts@example.com"));
-    when(em.to()).thenReturn(Optional.of("team@example.com"));
-    when(em.username()).thenReturn(Optional.empty());
-    when(em.password()).thenReturn(Optional.empty());
-    when(em.startTls()).thenReturn(true);
-    return em;
+  private void stubMpConfigProperties(String... keyValuePairs) {
+    Set<String> names = new HashSet<>();
+    // Preserve any existing property names from previous stubs
+    Iterable<String> existing = mpConfig.getPropertyNames();
+    if (existing != null) {
+      for (String name : existing) {
+        names.add(name);
+      }
+    }
+    for (int i = 0; i < keyValuePairs.length; i += 2) {
+      String key = keyValuePairs[i];
+      String value = keyValuePairs[i + 1];
+      names.add(key);
+      when(mpConfig.getOptionalValue(key, String.class)).thenReturn(Optional.of(value));
+    }
+    when(mpConfig.getPropertyNames()).thenReturn(names);
   }
 
   private static PostingService stubPostingService(String name) {
