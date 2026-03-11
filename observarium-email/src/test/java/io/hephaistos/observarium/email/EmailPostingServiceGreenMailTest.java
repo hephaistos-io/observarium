@@ -22,10 +22,10 @@ import org.junit.jupiter.api.extension.RegisterExtension;
  * GreenMail as an embedded mail server. These tests complement the unit tests in {@link
  * EmailPostingServiceTest}, which cover failure paths, configuration, and stateless operations.
  *
- * <p>{@link EmailPostingService#buildSession()} always sets {@code mail.smtp.auth=true} and
- * attaches an {@link jakarta.mail.Authenticator}. Jakarta Mail therefore requires non-null
- * credentials at send time. For tests that are not specifically about authentication, a shared test
- * user ({@code DEFAULT_USER} / {@code DEFAULT_PASS}) is registered with GreenMail before each test.
+ * <p>{@link EmailPostingService#buildSession()} sets {@code mail.smtp.auth=true} and attaches an
+ * {@link jakarta.mail.Authenticator} only when {@link EmailConfig#auth()} is {@code true}. For
+ * tests that are not specifically about authentication, a shared test user ({@code DEFAULT_USER} /
+ * {@code DEFAULT_PASS}) is registered with GreenMail before each test.
  */
 class EmailPostingServiceGreenMailTest {
 
@@ -63,6 +63,7 @@ class EmailPostingServiceGreenMailTest {
         to,
         DEFAULT_USER,
         DEFAULT_PASS,
+        true,
         false);
   }
 
@@ -337,6 +338,7 @@ class EmailPostingServiceGreenMailTest {
             "auth-dest@example.com",
             DEFAULT_USER,
             DEFAULT_PASS,
+            true,
             false);
 
     EmailPostingService service = new EmailPostingService(config);
@@ -374,6 +376,7 @@ class EmailPostingServiceGreenMailTest {
             DEFAULT_TO,
             DEFAULT_USER,
             DEFAULT_PASS,
+            true,
             true);
 
     EmailPostingService service = new EmailPostingService(config);
@@ -399,6 +402,7 @@ class EmailPostingServiceGreenMailTest {
             DEFAULT_TO,
             DEFAULT_USER,
             DEFAULT_PASS,
+            true,
             false);
 
     EmailPostingService service = new EmailPostingService(config);

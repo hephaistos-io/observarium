@@ -41,6 +41,7 @@ public class EmailPostingService implements PostingService {
 
   private final EmailConfig config;
   private final IssueFormatter formatter;
+  private final Session session;
 
   public EmailPostingService(EmailConfig config) {
     this(config, new DefaultIssueFormatter());
@@ -49,6 +50,7 @@ public class EmailPostingService implements PostingService {
   public EmailPostingService(EmailConfig config, IssueFormatter formatter) {
     this.config = java.util.Objects.requireNonNull(config, "config must not be null");
     this.formatter = java.util.Objects.requireNonNull(formatter, "formatter must not be null");
+    this.session = buildSession();
   }
 
   @Override
@@ -76,7 +78,6 @@ public class EmailPostingService implements PostingService {
    */
   @Override
   public PostingResult createIssue(ExceptionEvent event) {
-    Session session = buildSession();
     try {
       MimeMessage message = new MimeMessage(session);
       message.setFrom(new InternetAddress(config.from()));
@@ -110,21 +111,28 @@ public class EmailPostingService implements PostingService {
     Properties props = new Properties();
     props.put("mail.smtp.host", config.smtpHost());
     props.put("mail.smtp.port", String.valueOf(config.smtpPort()));
-    props.put("mail.smtp.auth", "true");
+
+    if (config.auth()) {
+      props.put("mail.smtp.auth", "true");
+    }
 
     if (config.startTls()) {
       props.put("mail.smtp.starttls.enable", "true");
       props.put("mail.smtp.starttls.required", "true");
     }
 
-    return Session.getInstance(
-        props,
-        new jakarta.mail.Authenticator() {
-          @Override
-          protected PasswordAuthentication getPasswordAuthentication() {
-            return new PasswordAuthentication(config.username(), config.password());
-          }
-        });
+    jakarta.mail.Authenticator authenticator = null;
+    if (config.auth()) {
+      authenticator =
+          new jakarta.mail.Authenticator() {
+            @Override
+            protected PasswordAuthentication getPasswordAuthentication() {
+              return new PasswordAuthentication(config.username(), config.password());
+            }
+          };
+    }
+
+    return Session.getInstance(props, authenticator);
   }
 
   /**

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.hephaistos.observarium.event.ExceptionEvent;
@@ -29,6 +30,7 @@ class EmailPostingServiceTest {
           "alerts@example.com",
           "user@example.com",
           "secret",
+          true,
           true);
 
   private static final EmailConfig CONFIG_STARTTLS_OFF =
@@ -39,6 +41,7 @@ class EmailPostingServiceTest {
           "alerts@example.com",
           "user@example.com",
           "secret",
+          true,
           false);
 
   // -----------------------------------------------------------------------
@@ -73,6 +76,7 @@ class EmailPostingServiceTest {
             "alerts@example.com",
             "user@example.com",
             "secret",
+            true,
             true);
     assertEquals("smtp.example.com", cfg.smtpHost());
     assertEquals(587, cfg.smtpPort());
@@ -80,6 +84,7 @@ class EmailPostingServiceTest {
     assertEquals("alerts@example.com", cfg.to());
     assertEquals("user@example.com", cfg.username());
     assertEquals("secret", cfg.password());
+    assertTrue(cfg.auth());
     assertTrue(cfg.startTls());
   }
 
@@ -87,9 +92,74 @@ class EmailPostingServiceTest {
   void config_startTlsFalse_storesCorrectly() {
     EmailConfig cfg =
         new EmailConfig(
-            "smtp.example.com", 25, "from@example.com", "to@example.com", "user", "pass", false);
+            "smtp.example.com",
+            25,
+            "from@example.com",
+            "to@example.com",
+            "user",
+            "pass",
+            true,
+            false);
     assertFalse(cfg.startTls());
     assertEquals(25, cfg.smtpPort());
+  }
+
+  @Test
+  void config_authDisabled_allowsNullCredentials() {
+    // When auth=false, username and password are not required.
+    EmailConfig cfg =
+        new EmailConfig(
+            "smtp.example.com", 25, "from@example.com", "to@example.com", null, null, false, false);
+    assertFalse(cfg.auth());
+    assertNull(cfg.username());
+    assertNull(cfg.password());
+  }
+
+  @Test
+  void config_authEnabled_throwsOnBlankUsername() {
+    IllegalArgumentException ex =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                new EmailConfig(
+                    "smtp.example.com",
+                    587,
+                    "from@example.com",
+                    "to@example.com",
+                    "",
+                    "pass",
+                    true,
+                    true));
+    assertTrue(
+        ex.getMessage().contains("username"),
+        "Exception message must mention 'username' but was: " + ex.getMessage());
+  }
+
+  @Test
+  void config_authEnabled_throwsOnBlankPassword() {
+    IllegalArgumentException ex =
+        assertThrows(
+            IllegalArgumentException.class,
+            () ->
+                new EmailConfig(
+                    "smtp.example.com",
+                    587,
+                    "from@example.com",
+                    "to@example.com",
+                    "user",
+                    "  ",
+                    true,
+                    true));
+    assertTrue(
+        ex.getMessage().contains("password"),
+        "Exception message must mention 'password' but was: " + ex.getMessage());
+  }
+
+  @Test
+  void config_defaultConstructor_setsAuthTrue() {
+    EmailConfig cfg =
+        new EmailConfig("smtp.example.com", "from@example.com", "to@example.com", "user", "pass");
+    assertTrue(cfg.auth(), "Convenience constructor must default auth to true");
   }
 
   // -----------------------------------------------------------------------

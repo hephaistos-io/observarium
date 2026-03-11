@@ -33,6 +33,7 @@ public class EmailPostingServiceFactory implements PostingServiceFactory {
             "EmailConfig.smtpPort must be a valid integer, got: " + portStr, e);
       }
     }
+    boolean auth = !"false".equalsIgnoreCase(config.get("auth"));
     boolean startTls = !"false".equalsIgnoreCase(config.get("start-tls"));
     EmailConfig emailConfig =
         new EmailConfig(
@@ -42,6 +43,7 @@ public class EmailPostingServiceFactory implements PostingServiceFactory {
             config.get("to"),
             config.get("username"),
             config.get("password"),
+            auth,
             startTls);
     return Optional.of(new EmailPostingService(emailConfig));
   }
