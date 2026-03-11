@@ -18,6 +18,10 @@ public class OrderResource {
 
   @Inject Observarium observarium;
 
+  /**
+   * Demonstrates <b>manual</b> exception capture — the resource catches the exception itself, calls
+   * {@link Observarium#captureException}, and returns a controlled error response.
+   */
   @GET
   @Path("/{id}")
   public Response getOrder(@PathParam("id") String id) {
@@ -35,5 +39,23 @@ public class OrderResource {
               Map.of("error", Objects.requireNonNullElse(e.getMessage(), e.getClass().getName())))
           .build();
     }
+  }
+
+  /**
+   * Demonstrates <b>automatic</b> exception capture — the exception propagates unhandled and is
+   * caught by {@link io.hephaistos.observarium.quarkus.ObservariumExceptionMapper}, which is
+   * registered at {@code @Priority(Priorities.USER + 1000)}. It captures the exception and returns
+   * an HTTP 500 response. Application-defined {@link jakarta.ws.rs.ext.ExceptionMapper} providers
+   * with lower priority values always take precedence.
+   */
+  @GET
+  @Path("/{id}/details")
+  public Response getOrderDetails(@PathParam("id") String id) {
+    long orderId = Long.parseLong(id);
+    if (orderId <= 0) {
+      throw new IllegalArgumentException("Order ID must be positive, got: " + orderId);
+    }
+    return Response.ok(Map.of("id", orderId, "status", "shipped", "item", "Widget", "quantity", 3))
+        .build();
   }
 }
