@@ -3,6 +3,7 @@ package io.hephaistos.observarium.quarkus;
 import io.hephaistos.observarium.Observarium;
 import io.hephaistos.observarium.fingerprint.DefaultExceptionFingerprinter;
 import io.hephaistos.observarium.posting.PostingService;
+import io.hephaistos.observarium.posting.PostingServiceFactory;
 import io.hephaistos.observarium.scrub.DefaultDataScrubber;
 import io.hephaistos.observarium.scrub.ScrubLevel;
 import io.hephaistos.observarium.trace.MdcTraceContextProvider;
@@ -10,16 +11,23 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Inject;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.ServiceLoader;
+import org.eclipse.microprofile.config.Config;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
  * CDI producer that creates the central {@link Observarium} bean for Quarkus applications.
  *
- * <p>Posting service beans are created conditionally based on config and classpath availability
- * using reflection, avoiding {@code NoClassDefFoundError} when optional posting modules are absent.
+ * <p>Posting services are discovered from two sources:
+ *
+ * <ol>
+ *   <li>CDI-managed {@link PostingService} beans registered by the application.
+ *   <li>{@link PostingServiceFactory} implementations discovered via {@link ServiceLoader},
+ *       configured from MicroProfile Config.
+ * </ol>
  */
 @ApplicationScoped
 public class ObservariumProducer {
@@ -27,6 +35,8 @@ public class ObservariumProducer {
   private static final Logger log = LoggerFactory.getLogger(ObservariumProducer.class);
 
   @Inject ObservariumQuarkusConfig config;
+
+  @Inject Config mpConfig;
 
   @Produces
   @ApplicationScoped
@@ -51,169 +61,27 @@ public class ObservariumProducer {
       builder.addPostingService(service);
     }
 
-    // Additionally, create posting services from config if the classes are on the classpath
-    for (PostingService service : createConfiguredPostingServices()) {
-      builder.addPostingService(service);
+    // Discover posting services via SPI factories
+    for (PostingServiceFactory factory : ServiceLoader.load(PostingServiceFactory.class)) {
+      Map<String, String> props = extractConfigMap("observarium." + factory.id() + ".");
+      factory.create(props).ifPresent(builder::addPostingService);
     }
 
     return builder.build();
   }
 
-  private List<PostingService> createConfiguredPostingServices() {
-    List<PostingService> services = new ArrayList<>();
-
-    config
-        .github()
-        .filter(ObservariumQuarkusConfig.GitHub::enabled)
-        .ifPresent(
-            gh -> {
-              try {
-                services.add(createGitHubService(gh));
-              } catch (NoClassDefFoundError e) {
-                log.warn(
-                    "GitHub posting service is enabled but observarium-github is not on the classpath");
-              }
-            });
-
-    config
-        .jira()
-        .filter(ObservariumQuarkusConfig.Jira::enabled)
-        .ifPresent(
-            jira -> {
-              try {
-                services.add(createJiraService(jira));
-              } catch (NoClassDefFoundError e) {
-                log.warn(
-                    "Jira posting service is enabled but observarium-jira is not on the classpath");
-              }
-            });
-
-    config
-        .gitlab()
-        .filter(ObservariumQuarkusConfig.GitLab::enabled)
-        .ifPresent(
-            gl -> {
-              try {
-                services.add(createGitLabService(gl));
-              } catch (NoClassDefFoundError e) {
-                log.warn(
-                    "GitLab posting service is enabled but observarium-gitlab is not on the classpath");
-              }
-            });
-
-    config
-        .email()
-        .filter(ObservariumQuarkusConfig.Email::enabled)
-        .ifPresent(
-            em -> {
-              try {
-                services.add(createEmailService(em));
-              } catch (NoClassDefFoundError e) {
-                log.warn(
-                    "Email posting service is enabled but observarium-email is not on the classpath");
-              }
-            });
-
-    return services;
-  }
-
-  // Package-private factory methods extracted for testability. Each method concentrates all
-  // class-loading of the optional posting module so the catch(NoClassDefFoundError) in
-  // createConfiguredPostingServices() can be exercised by test subclasses.
-
-  PostingService createGitHubService(ObservariumQuarkusConfig.GitHub gh) {
-    var ghConfig =
-        new io.hephaistos.observarium.github.GitHubConfig(
-            gh.token()
-                .orElseThrow(
-                    () ->
-                        new IllegalStateException(
-                            "observarium.github.token is required when github is enabled")),
-            gh.owner()
-                .orElseThrow(
-                    () ->
-                        new IllegalStateException(
-                            "observarium.github.owner is required when github is enabled")),
-            gh.repo()
-                .orElseThrow(
-                    () ->
-                        new IllegalStateException(
-                            "observarium.github.repo is required when github is enabled")),
-            gh.labelPrefix(),
-            gh.baseUrl().orElse(null));
-    return new io.hephaistos.observarium.github.GitHubPostingService(ghConfig);
-  }
-
-  PostingService createJiraService(ObservariumQuarkusConfig.Jira jira) {
-    var jiraConfig =
-        new io.hephaistos.observarium.jira.JiraConfig(
-            jira.baseUrl()
-                .orElseThrow(
-                    () ->
-                        new IllegalStateException(
-                            "observarium.jira.base-url is required when jira is enabled")),
-            jira.username()
-                .orElseThrow(
-                    () ->
-                        new IllegalStateException(
-                            "observarium.jira.username is required when jira is enabled")),
-            jira.apiToken()
-                .orElseThrow(
-                    () ->
-                        new IllegalStateException(
-                            "observarium.jira.api-token is required when jira is enabled")),
-            jira.projectKey()
-                .orElseThrow(
-                    () ->
-                        new IllegalStateException(
-                            "observarium.jira.project-key is required when jira is enabled")),
-            jira.issueType());
-    return new io.hephaistos.observarium.jira.JiraPostingService(jiraConfig);
-  }
-
-  PostingService createGitLabService(ObservariumQuarkusConfig.GitLab gl) {
-    var glConfig =
-        new io.hephaistos.observarium.gitlab.GitLabConfig(
-            gl.baseUrl()
-                .orElseThrow(
-                    () ->
-                        new IllegalStateException(
-                            "observarium.gitlab.base-url is required when gitlab is enabled")),
-            gl.privateToken()
-                .orElseThrow(
-                    () ->
-                        new IllegalStateException(
-                            "observarium.gitlab.private-token is required when gitlab is enabled")),
-            gl.projectId()
-                .orElseThrow(
-                    () ->
-                        new IllegalStateException(
-                            "observarium.gitlab.project-id is required when gitlab is enabled")));
-    return new io.hephaistos.observarium.gitlab.GitLabPostingService(glConfig);
-  }
-
-  PostingService createEmailService(ObservariumQuarkusConfig.Email em) {
-    var emailConfig =
-        new io.hephaistos.observarium.email.EmailConfig(
-            em.smtpHost()
-                .orElseThrow(
-                    () ->
-                        new IllegalStateException(
-                            "observarium.email.smtp-host is required when email is enabled")),
-            em.smtpPort(),
-            em.from()
-                .orElseThrow(
-                    () ->
-                        new IllegalStateException(
-                            "observarium.email.from is required when email is enabled")),
-            em.to()
-                .orElseThrow(
-                    () ->
-                        new IllegalStateException(
-                            "observarium.email.to is required when email is enabled")),
-            em.username().orElse(null),
-            em.password().orElse(null),
-            em.startTls());
-    return new io.hephaistos.observarium.email.EmailPostingService(emailConfig);
+  /**
+   * Extracts all config properties under the given prefix into a flat map with prefix-stripped,
+   * kebab-case keys.
+   */
+  Map<String, String> extractConfigMap(String prefix) {
+    Map<String, String> result = new HashMap<>();
+    for (String name : mpConfig.getPropertyNames()) {
+      if (name.startsWith(prefix)) {
+        String key = name.substring(prefix.length());
+        mpConfig.getOptionalValue(name, String.class).ifPresent(value -> result.put(key, value));
+      }
+    }
+    return result;
   }
 }
