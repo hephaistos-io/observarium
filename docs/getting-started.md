@@ -95,7 +95,7 @@ public class App {
 
 ### 3. Shutdown
 
-The `Observarium` constructor registers a JVM shutdown hook that drains the queue (up to 10 seconds) and then calls `shutdownNow()`. You do not need to call `obs.shutdown()` manually unless you want explicit lifecycle control, for example in a test.
+The `Observarium` constructor registers a JVM shutdown hook that waits up to 10 seconds for in-flight work to complete. If the drain times out, a forced shutdown is attempted; posting services are then closed. `obs.shutdown()` follows the same sequence and blocks until it completes. Call it explicitly when you need to stop processing before JVM exit, for example in a `@PreDestroy` method or a test.
 
 ---
 

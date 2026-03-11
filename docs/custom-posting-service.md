@@ -248,3 +248,101 @@ public class ObservariumProducers {
     }
 }
 ```
+
+---
+
+## The `PostingServiceFactory` SPI
+
+The `@Bean` and `@Produces` approaches above are sufficient for a custom posting service used within a single application. If you want to package your posting service as a reusable library that auto-registers in any Observarium-aware application — the same way the built-in GitHub, Jira, GitLab, and Email modules do — implement the `PostingServiceFactory` SPI instead.
+
+### How it works
+
+The Spring Boot and Quarkus modules discover `PostingServiceFactory` implementations at startup via `java.util.ServiceLoader`. For each factory whose `id()` matches a configured prefix under `observarium.<id>.*`, the framework extracts the relevant properties as a `Map<String, String>` (keys are kebab-case and stripped of the prefix) and passes them to `create()`. The returned `PostingService`, if present, is added to the `Observarium` instance automatically.
+
+### The `PostingServiceFactory` interface
+
+```java
+package io.hephaistos.observarium.posting;
+
+import java.util.Map;
+import java.util.Optional;
+
+public interface PostingServiceFactory {
+
+    /**
+     * Returns the config prefix segment for this factory.
+     * For example, "slack" matches observarium.slack.* properties.
+     */
+    String id();
+
+    /**
+     * Creates a PostingService from the given prefix-stripped config map.
+     *
+     * Keys are kebab-case. For example, the property observarium.slack.webhook-url
+     * arrives as the key "webhook-url".
+     *
+     * Contract:
+     *   - Return Optional.empty() when the "enabled" key is absent or "false".
+     *   - Throw IllegalArgumentException when enabled but required config is missing.
+     */
+    Optional<PostingService> create(Map<String, String> config);
+}
+```
+
+### Implementation skeleton
+
+```java
+import io.hephaistos.observarium.posting.PostingService;
+import io.hephaistos.observarium.posting.PostingServiceFactory;
+
+import java.util.Map;
+import java.util.Optional;
+
+public class SlackWebhookPostingServiceFactory implements PostingServiceFactory {
+
+    @Override
+    public String id() {
+        return "slack";  // matches observarium.slack.* properties
+    }
+
+    @Override
+    public Optional<PostingService> create(Map<String, String> config) {
+        if (!"true".equalsIgnoreCase(config.get("enabled"))) {
+            return Optional.empty();
+        }
+
+        String webhookUrl = config.get("webhook-url");
+        if (webhookUrl == null || webhookUrl.isBlank()) {
+            throw new IllegalArgumentException(
+                "observarium.slack.webhook-url is required when observarium.slack.enabled=true");
+        }
+
+        return Optional.of(new SlackWebhookPostingService(webhookUrl));
+    }
+}
+```
+
+### Registration via `ServiceLoader`
+
+Create the file `META-INF/services/io.hephaistos.observarium.posting.PostingServiceFactory` in your module's resources directory and add the fully-qualified class name of your factory:
+
+```
+com.example.slack.SlackWebhookPostingServiceFactory
+```
+
+Once the JAR is on the classpath, the Spring Boot auto-configuration and Quarkus extension will discover the factory automatically. No additional wiring is required.
+
+### Enabling the service in configuration
+
+With the factory registered, users of your library enable and configure the service the same way as the built-in modules:
+
+```yaml
+observarium:
+  slack:
+    enabled: true
+    webhook-url: ${SLACK_WEBHOOK_URL}
+```
+
+### When to use the SPI vs. the direct approaches
+
+Use `PostingServiceFactory` when you are building a reusable library module that should auto-register without any application code changes. For a custom posting service that lives inside a single application, the builder (plain Java), `@Bean` (Spring Boot), or `@Produces` (Quarkus) approach is simpler and does not require service-file registration.
