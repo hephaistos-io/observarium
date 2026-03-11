@@ -83,16 +83,7 @@ public final class Observarium {
         new Thread(
             () -> {
               executor.shutdown();
-              try {
-                if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
-                  log.warn("Observarium executor did not terminate in time, forcing shutdown");
-                  executor.shutdownNow();
-                }
-              } catch (InterruptedException exception) {
-                executor.shutdownNow();
-                Thread.currentThread().interrupt();
-              }
-              closePostingServices();
+              drainAndClose();
             },
             "observarium-shutdown");
     Runtime.getRuntime().addShutdownHook(shutdownHook);
@@ -192,7 +183,8 @@ public final class Observarium {
    * Initiates an orderly shutdown of the background processing thread.
    *
    * <p>Already-queued exceptions continue to be processed; new submissions after this call will be
-   * dropped. This method returns immediately — it does not wait for in-flight work to complete.
+   * dropped. This method blocks for up to 10 seconds to let in-flight work complete before closing
+   * posting services. If the executor does not terminate in time, a forced shutdown is attempted.
    *
    * <p>Calling this method is idempotent. A JVM shutdown hook registered at construction time
    * performs the same shutdown automatically on JVM exit, so explicit calls are only needed when
@@ -200,12 +192,25 @@ public final class Observarium {
    */
   public void shutdown() {
     executor.shutdown();
-    closePostingServices();
+    drainAndClose();
     try {
       Runtime.getRuntime().removeShutdownHook(shutdownHook);
     } catch (IllegalStateException ignored) {
       // JVM is already shutting down — removeShutdownHook throws ISE in that case.
     }
+  }
+
+  private void drainAndClose() {
+    try {
+      if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
+        log.warn("Observarium executor did not terminate in time, forcing shutdown");
+        executor.shutdownNow();
+      }
+    } catch (InterruptedException exception) {
+      executor.shutdownNow();
+      Thread.currentThread().interrupt();
+    }
+    closePostingServices();
   }
 
   private void closePostingServices() {
