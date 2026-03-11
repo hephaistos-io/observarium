@@ -57,6 +57,7 @@ All properties are under the `observarium` prefix. Use either `application.yml` 
 | `observarium.email.to` | `String` | — | Recipient address. |
 | `observarium.email.username` | `String` | — | SMTP authentication username. |
 | `observarium.email.password` | `String` | — | SMTP authentication password. |
+| `observarium.email.auth` | `boolean` | `true` | Enable SMTP authentication. |
 | `observarium.email.start-tls` | `boolean` | `true` | Enable STARTTLS. |
 
 **Example `application.yml`:**
@@ -272,7 +273,7 @@ Key properties:
 
 - **Single worker thread** — events are processed in submission order, no concurrency within Observarium itself.
 - **Bounded queue** — when the queue reaches `queueCapacity` (default 256), new events are dropped silently except for a `WARN` log line: `"Observarium queue full, dropping exception report"`. This protects the application from backpressure caused by a slow issue tracker.
-- **Shutdown** — a JVM shutdown hook waits up to 10 seconds for the queue to drain, then calls `shutdownNow()`. Call `obs.shutdown()` explicitly if you need to trigger this earlier, for example in a `@PreDestroy` method.
+- **Shutdown** — both the JVM shutdown hook and `obs.shutdown()` wait up to 10 seconds for in-flight work to complete, then force shutdown only if the drain times out, and then close all posting services. `obs.shutdown()` blocks for the duration of this sequence. Call it explicitly when you need to stop processing before JVM exit, for example in a `@PreDestroy` method.
 - **Failure isolation** — if a posting service throws an unchecked exception, `ExceptionProcessor` catches it, logs it at `ERROR`, and returns a `PostingResult.failure(...)`. The application thread that called `captureException` is never affected.
 
 ```java
