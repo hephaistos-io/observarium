@@ -69,7 +69,7 @@ public class ObservariumAutoConfiguration {
    *       configured from the Spring {@link Environment}.
    * </ol>
    */
-  @Bean
+  @Bean(destroyMethod = "shutdown")
   @ConditionalOnMissingBean
   public Observarium observarium(
       ObservariumProperties properties,

@@ -30,6 +30,12 @@ public class ObservariumExceptionMapper implements ExceptionMapper<Exception> {
 
   @Override
   public Response toResponse(Exception exception) {
+    if (exception instanceof jakarta.ws.rs.WebApplicationException webAppException) {
+      if (webAppException.getResponse().getStatus() >= 500) {
+        observarium.captureException(exception);
+      }
+      return webAppException.getResponse();
+    }
     observarium.captureException(exception);
     return Response.serverError().entity("An unexpected error occurred").build();
   }

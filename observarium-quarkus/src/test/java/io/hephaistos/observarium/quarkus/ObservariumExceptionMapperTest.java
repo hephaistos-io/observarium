@@ -2,8 +2,12 @@ package io.hephaistos.observarium.quarkus;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 import io.hephaistos.observarium.Observarium;
+import jakarta.ws.rs.ForbiddenException;
+import jakarta.ws.rs.NotFoundException;
+import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.Response;
 import java.lang.reflect.Field;
 import org.junit.jupiter.api.BeforeEach;
@@ -78,5 +82,62 @@ class ObservariumExceptionMapperTest {
     Response response = mapper.toResponse(exception);
 
     assertThat(response.getEntity()).isEqualTo("An unexpected error occurred");
+  }
+
+  // ---------------------------------------------------------------------------
+  // WebApplicationException passthrough
+  // ---------------------------------------------------------------------------
+
+  @Test
+  void toResponse_preserves404Status_forNotFoundException_withoutCapture() {
+    NotFoundException notFound = new NotFoundException("resource not found");
+
+    Response response = mapper.toResponse(notFound);
+
+    assertThat(response.getStatus()).isEqualTo(404);
+    verifyNoInteractions(observarium);
+  }
+
+  @Test
+  void toResponse_preserves403Status_forForbiddenException_withoutCapture() {
+    ForbiddenException forbidden = new ForbiddenException("access denied");
+
+    Response response = mapper.toResponse(forbidden);
+
+    assertThat(response.getStatus()).isEqualTo(403);
+    verifyNoInteractions(observarium);
+  }
+
+  @Test
+  void toResponse_preservesCustom4xxStatus_withoutCapture() {
+    WebApplicationException conflict =
+        new WebApplicationException("conflict", Response.Status.CONFLICT);
+
+    Response response = mapper.toResponse(conflict);
+
+    assertThat(response.getStatus()).isEqualTo(409);
+    verifyNoInteractions(observarium);
+  }
+
+  @Test
+  void toResponse_captures5xxWebApplicationException() {
+    WebApplicationException serverError =
+        new WebApplicationException("bad gateway", Response.Status.BAD_GATEWAY);
+
+    Response response = mapper.toResponse(serverError);
+
+    assertThat(response.getStatus()).isEqualTo(502);
+    verify(observarium).captureException(serverError);
+  }
+
+  @Test
+  void toResponse_returns500_forNonWebException() {
+    Exception plain = new IllegalStateException("something internal broke");
+
+    Response response = mapper.toResponse(plain);
+
+    assertThat(response.getStatus()).isEqualTo(500);
+    assertThat(response.getEntity()).isEqualTo("An unexpected error occurred");
+    verify(observarium).captureException(plain);
   }
 }
