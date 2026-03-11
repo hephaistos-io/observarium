@@ -1,5 +1,7 @@
 package io.hephaistos.observarium.gitlab;
 
+import static java.util.Objects.requireNonNull;
+
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -62,10 +64,10 @@ public class GitLabPostingService implements PostingService, AutoCloseable {
   /** Package-private constructor for testing with a custom HttpClient. */
   GitLabPostingService(
       GitLabConfig config, HttpClient httpClient, Gson gson, IssueFormatter formatter) {
-    this.config = java.util.Objects.requireNonNull(config, "config must not be null");
-    this.httpClient = java.util.Objects.requireNonNull(httpClient, "httpClient must not be null");
-    this.gson = java.util.Objects.requireNonNull(gson, "gson must not be null");
-    this.formatter = java.util.Objects.requireNonNull(formatter, "formatter must not be null");
+    this.config = requireNonNull(config, "config must not be null");
+    this.httpClient = requireNonNull(httpClient, "httpClient must not be null");
+    this.gson = requireNonNull(gson, "gson must not be null");
+    this.formatter = requireNonNull(formatter, "formatter must not be null");
   }
 
   @Override
@@ -177,7 +179,7 @@ public class GitLabPostingService implements PostingService, AutoCloseable {
    */
   @Override
   public PostingResult commentOnIssue(String externalIssueId, ExceptionEvent event) {
-    java.util.Objects.requireNonNull(externalIssueId, "externalIssueId must not be null");
+    requireNonNull(externalIssueId, "externalIssueId must not be null");
     String url =
         config.baseUrl()
             + "/api/v4/projects/"

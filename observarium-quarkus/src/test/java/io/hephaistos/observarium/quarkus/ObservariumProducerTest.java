@@ -12,7 +12,9 @@ import io.hephaistos.observarium.posting.PostingService;
 import io.hephaistos.observarium.scrub.ScrubLevel;
 import jakarta.enterprise.inject.Instance;
 import java.lang.reflect.Field;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import org.eclipse.microprofile.config.Config;
 import org.junit.jupiter.api.BeforeEach;
@@ -147,12 +149,12 @@ class ObservariumProducerTest {
   }
 
   private void stubMpConfigProperties(String... keyValuePairs) {
-    Set<String> names = new java.util.HashSet<>();
+    Set<String> names = new HashSet<>();
     for (int i = 0; i < keyValuePairs.length; i += 2) {
       String key = keyValuePairs[i];
       String value = keyValuePairs[i + 1];
       names.add(key);
-      when(mpConfig.getOptionalValue(key, String.class)).thenReturn(java.util.Optional.of(value));
+      when(mpConfig.getOptionalValue(key, String.class)).thenReturn(Optional.of(value));
     }
     when(mpConfig.getPropertyNames()).thenReturn(names);
   }
