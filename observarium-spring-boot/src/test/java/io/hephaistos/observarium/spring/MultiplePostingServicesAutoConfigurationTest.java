@@ -3,38 +3,27 @@ package io.hephaistos.observarium.spring;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.hephaistos.observarium.Observarium;
-import io.hephaistos.observarium.posting.PostingService;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 /**
- * Integration tests for the composite scenario where multiple posting-service auto-configurations
- * are loaded together alongside {@link ObservariumAutoConfiguration}.
+ * Integration tests verifying that multiple posting services discovered via the {@link
+ * io.hephaistos.observarium.posting.PostingServiceFactory} SPI are correctly wired into the {@link
+ * Observarium} bean.
  *
- * <p>Verifies that the correct number of {@link PostingService} beans are registered when all,
- * some, or none of the integration modules are enabled, and that the {@link Observarium} bean is
- * always present regardless of which services are active.
- *
- * <p>All four integration modules ({@code observarium-github}, {@code observarium-jira}, {@code
- * observarium-gitlab}, {@code observarium-email}) are on the test classpath, so the
- * {@code @ConditionalOnClass} guards on each auto-configuration are satisfied.
+ * <p>All four posting modules are on the test classpath, so their {@code ServiceLoader}
+ * registrations are active.
  */
 class MultiplePostingServicesAutoConfigurationTest {
 
-  private final ApplicationContextRunner allConfigsRunner =
+  private final ApplicationContextRunner runner =
       new ApplicationContextRunner()
-          .withConfiguration(
-              AutoConfigurations.of(
-                  ObservariumAutoConfiguration.class,
-                  GitHubAutoConfiguration.class,
-                  JiraAutoConfiguration.class,
-                  GitLabAutoConfiguration.class,
-                  EmailAutoConfiguration.class));
+          .withConfiguration(AutoConfigurations.of(ObservariumAutoConfiguration.class));
 
   @Test
   void allFourPostingServicesAreWired_whenAllEnabled() {
-    allConfigsRunner
+    runner
         .withPropertyValues(
             "observarium.github.enabled=true",
             "observarium.github.token=ghp_test",
@@ -58,22 +47,24 @@ class MultiplePostingServicesAutoConfigurationTest {
         .run(
             context -> {
               assertThat(context).hasSingleBean(Observarium.class);
-              assertThat(context.getBeansOfType(PostingService.class)).hasSize(4);
+              Observarium observarium = context.getBean(Observarium.class);
+              assertThat(observarium.config().postingServiceCount()).isEqualTo(4);
             });
   }
 
   @Test
   void contextLoads_withNoPostingServicesEnabled() {
-    allConfigsRunner.run(
+    runner.run(
         context -> {
           assertThat(context).hasSingleBean(Observarium.class);
-          assertThat(context.getBeansOfType(PostingService.class)).isEmpty();
+          Observarium observarium = context.getBean(Observarium.class);
+          assertThat(observarium.config().postingServiceCount()).isZero();
         });
   }
 
   @Test
   void subsetOfServicesWired_whenOnlyGitHubAndJiraEnabled() {
-    allConfigsRunner
+    runner
         .withPropertyValues(
             "observarium.github.enabled=true",
             "observarium.github.token=ghp_test",
@@ -87,11 +78,8 @@ class MultiplePostingServicesAutoConfigurationTest {
         .run(
             context -> {
               assertThat(context).hasSingleBean(Observarium.class);
-              assertThat(context.getBeansOfType(PostingService.class)).hasSize(2);
-              assertThat(context).hasBean("gitHubPostingService");
-              assertThat(context).hasBean("jiraPostingService");
-              assertThat(context).doesNotHaveBean("gitLabPostingService");
-              assertThat(context).doesNotHaveBean("emailPostingService");
+              Observarium observarium = context.getBean(Observarium.class);
+              assertThat(observarium.config().postingServiceCount()).isEqualTo(2);
             });
   }
 }

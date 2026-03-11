@@ -100,40 +100,4 @@ class ObservariumAutoConfigurationTest {
               assertThat(context.getBean(Observarium.class)).isSameAs(customObservarium);
             });
   }
-
-  @Test
-  void githubIsDisabledByDefault() {
-    runner.run(
-        context -> {
-          ObservariumProperties properties = context.getBean(ObservariumProperties.class);
-          assertThat(properties.getGithub().isEnabled()).isFalse();
-        });
-  }
-
-  @Test
-  void jiraIsDisabledByDefault() {
-    runner.run(
-        context -> {
-          ObservariumProperties properties = context.getBean(ObservariumProperties.class);
-          assertThat(properties.getJira().isEnabled()).isFalse();
-        });
-  }
-
-  @Test
-  void gitlabIsDisabledByDefault() {
-    runner.run(
-        context -> {
-          ObservariumProperties properties = context.getBean(ObservariumProperties.class);
-          assertThat(properties.getGitlab().isEnabled()).isFalse();
-        });
-  }
-
-  @Test
-  void emailIsDisabledByDefault() {
-    runner.run(
-        context -> {
-          ObservariumProperties properties = context.getBean(ObservariumProperties.class);
-          assertThat(properties.getEmail().isEnabled()).isFalse();
-        });
-  }
 }
