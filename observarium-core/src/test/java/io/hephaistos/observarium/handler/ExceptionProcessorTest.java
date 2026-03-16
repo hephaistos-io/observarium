@@ -2,6 +2,7 @@ package io.hephaistos.observarium.handler;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import io.hephaistos.observarium.ObservariumListener;
 import io.hephaistos.observarium.event.ExceptionEvent;
 import io.hephaistos.observarium.event.Severity;
 import io.hephaistos.observarium.fingerprint.ExceptionFingerprinter;
@@ -178,8 +179,11 @@ class ExceptionProcessorTest {
   // Helper
   // -----------------------------------------------------------------------
 
+  private static final ObservariumListener NOOP_LISTENER = new ObservariumListener() {};
+
   private static ExceptionProcessor processor(List<PostingService> services) {
-    return new ExceptionProcessor(FIXED_FINGERPRINTER, PASSTHROUGH_SCRUBBER, services);
+    return new ExceptionProcessor(
+        FIXED_FINGERPRINTER, PASSTHROUGH_SCRUBBER, services, NOOP_LISTENER);
   }
 
   /** Calls process with pre-captured trace context (as Observarium now does eagerly). */
@@ -298,7 +302,8 @@ class ExceptionProcessorTest {
     RecordingPostingService service =
         new RecordingPostingService("svc", DuplicateSearchResult.notFound());
     ExceptionProcessor proc =
-        new ExceptionProcessor(FIXED_FINGERPRINTER, MARKING_SCRUBBER, List.of(service));
+        new ExceptionProcessor(
+            FIXED_FINGERPRINTER, MARKING_SCRUBBER, List.of(service), NOOP_LISTENER);
 
     process(proc, new RuntimeException("sensitive data"), Severity.ERROR, Map.of());
 
@@ -312,7 +317,8 @@ class ExceptionProcessorTest {
     RecordingPostingService service =
         new RecordingPostingService("svc", DuplicateSearchResult.notFound());
     ExceptionProcessor proc =
-        new ExceptionProcessor(FIXED_FINGERPRINTER, PASSTHROUGH_SCRUBBER, List.of(service));
+        new ExceptionProcessor(
+            FIXED_FINGERPRINTER, PASSTHROUGH_SCRUBBER, List.of(service), NOOP_LISTENER);
 
     processWithTrace(
         proc, new RuntimeException("traced"), Severity.INFO, Map.of(), "trace-abc", "span-xyz");
