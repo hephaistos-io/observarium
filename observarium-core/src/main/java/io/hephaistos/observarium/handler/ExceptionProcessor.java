@@ -1,5 +1,6 @@
 package io.hephaistos.observarium.handler;
 
+import io.hephaistos.observarium.ObservariumListener;
 import io.hephaistos.observarium.event.ExceptionEvent;
 import io.hephaistos.observarium.event.Severity;
 import io.hephaistos.observarium.fingerprint.ExceptionFingerprinter;
@@ -35,14 +36,17 @@ public class ExceptionProcessor {
   private final ExceptionFingerprinter fingerprinter;
   private final DataScrubber scrubber;
   private final List<PostingService> postingServices;
+  private final ObservariumListener listener;
 
   public ExceptionProcessor(
       ExceptionFingerprinter fingerprinter,
       DataScrubber scrubber,
-      List<PostingService> postingServices) {
+      List<PostingService> postingServices,
+      ObservariumListener listener) {
     this.fingerprinter = fingerprinter;
     this.scrubber = scrubber;
     this.postingServices = List.copyOf(postingServices);
+    this.listener = listener;
   }
 
   /**
@@ -79,25 +83,44 @@ public class ExceptionProcessor {
     var results = new ArrayList<PostingResult>();
 
     for (PostingService service : postingServices) {
+      long startNanos = System.nanoTime();
+      boolean duplicate = false;
+      boolean success = false;
       try {
-        var duplicate = service.findDuplicate(event);
-        if (duplicate.found()) {
+        var duplicateResult = service.findDuplicate(event);
+        duplicate = duplicateResult.found();
+        PostingResult result;
+        if (duplicate) {
           log.info(
               "Duplicate found on {} (issue {}), adding comment",
               service.name(),
-              duplicate.externalIssueId());
-          results.add(service.commentOnIssue(duplicate.externalIssueId(), event));
+              duplicateResult.externalIssueId());
+          result = service.commentOnIssue(duplicateResult.externalIssueId(), event);
         } else {
           log.info("No duplicate on {}, creating new issue", service.name());
-          results.add(service.createIssue(event));
+          result = service.createIssue(event);
         }
+        results.add(result);
+        success = result.success();
       } catch (Exception exception) {
         log.error("Failed to post to {}: {}", service.name(), exception.getMessage(), exception);
         results.add(
             PostingResult.failure("Service " + service.name() + ": " + exception.getMessage()));
+      } finally {
+        long durationNanos = System.nanoTime() - startNanos;
+        notifyPostingCompleted(service.name(), duplicate, success, durationNanos);
       }
     }
     return results;
+  }
+
+  private void notifyPostingCompleted(
+      String serviceName, boolean duplicate, boolean success, long durationNanos) {
+    try {
+      listener.onPostingCompleted(serviceName, duplicate, success, durationNanos);
+    } catch (Exception ex) {
+      log.debug("Listener callback onPostingCompleted failed", ex);
+    }
   }
 
   private ExceptionEvent buildEvent(

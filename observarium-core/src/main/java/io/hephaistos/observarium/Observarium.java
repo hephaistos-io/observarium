@@ -64,6 +64,7 @@ public final class Observarium {
   private final ObservariumConfig config;
   private final ExecutorService executor;
   private final List<PostingService> postingServices;
+  private final ObservariumListener listener;
   private final AtomicBoolean servicesClosed = new AtomicBoolean(false);
   private final Thread shutdownHook;
 
@@ -72,12 +73,14 @@ public final class Observarium {
       TraceContextProvider traceProvider,
       ObservariumConfig config,
       ExecutorService executor,
-      List<PostingService> postingServices) {
+      List<PostingService> postingServices,
+      ObservariumListener listener) {
     this.processor = processor;
     this.traceProvider = traceProvider;
     this.config = config;
     this.executor = executor;
     this.postingServices = postingServices;
+    this.listener = listener;
 
     this.shutdownHook =
         new Thread(
@@ -159,8 +162,10 @@ public final class Observarium {
                   List.of(PostingResult.failure("Processing failed: " + ex.getMessage())));
             }
           });
+      notifyExceptionCaptured(severity);
     } catch (RejectedExecutionException ex) {
       log.warn("Observarium queue full, dropping exception report");
+      notifyExceptionDropped();
       future.complete(List.of(PostingResult.failure("Queue full, exception report dropped")));
     }
     return future;
@@ -228,6 +233,22 @@ public final class Observarium {
     }
   }
 
+  private void notifyExceptionCaptured(Severity severity) {
+    try {
+      listener.onExceptionCaptured(severity);
+    } catch (Exception ex) {
+      log.debug("Listener callback onExceptionCaptured failed", ex);
+    }
+  }
+
+  private void notifyExceptionDropped() {
+    try {
+      listener.onExceptionDropped();
+    } catch (Exception ex) {
+      log.debug("Listener callback onExceptionDropped failed", ex);
+    }
+  }
+
   public static Builder builder() {
     return new Builder();
   }
@@ -247,6 +268,7 @@ public final class Observarium {
     private TraceContextProvider traceProvider;
     private final List<PostingService> postingServices = new ArrayList<>();
     private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
+    private ObservariumListener listener;
 
     /**
      * Sets the built-in scrub level applied to all event fields before reporting.
@@ -362,6 +384,21 @@ public final class Observarium {
     }
 
     /**
+     * Registers a listener that receives callbacks for key pipeline events such as exception
+     * captures, drops, and posting outcomes.
+     *
+     * <p>If not set, a no-op listener is used. The listener must be thread-safe — callbacks may be
+     * invoked from both the caller's thread and the background worker thread.
+     *
+     * @param listener the listener to notify; must not be {@code null}
+     * @return this builder
+     */
+    public Builder listener(ObservariumListener listener) {
+      this.listener = listener;
+      return this;
+    }
+
+    /**
      * Sets the maximum number of exception reports that can be buffered in the internal queue
      * awaiting the background worker thread.
      *
@@ -399,28 +436,35 @@ public final class Observarium {
         traceProvider = new MdcTraceContextProvider();
       }
 
+      if (listener == null) {
+        listener = new ObservariumListener() {};
+      }
+
       if (postingServices.isEmpty()) {
         log.warn("No PostingService configured — captured exceptions will be silently ignored");
       }
 
       var config = new ObservariumConfig(scrubLevel, postingServices.size());
-      var processor = new ExceptionProcessor(fingerprinter, scrubber, postingServices);
+      var processor = new ExceptionProcessor(fingerprinter, scrubber, postingServices, listener);
 
+      var queue = new ArrayBlockingQueue<Runnable>(queueCapacity);
       var executor =
           new ThreadPoolExecutor(
               1,
               1,
               0L,
               TimeUnit.MILLISECONDS,
-              new ArrayBlockingQueue<>(queueCapacity),
+              queue,
               runnable -> {
                 var thread = new Thread(runnable, "observarium-worker");
                 thread.setDaemon(true);
                 return thread;
               });
 
+      listener.onQueueSizeAvailable(queue::size);
+
       return new Observarium(
-          processor, traceProvider, config, executor, List.copyOf(postingServices));
+          processor, traceProvider, config, executor, List.copyOf(postingServices), listener);
     }
   }
 }
