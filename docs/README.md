@@ -7,3 +7,4 @@
 | [Posting Services](posting-services.md) | Per-service setup, deduplication mechanisms, required permissions, feature matrix |
 | [Custom Posting Service](custom-posting-service.md) | How to implement and register your own `PostingService` |
 | [OpenTelemetry Integration](opentelemetry.md) | Trace ID correlation via MDC with OpenTelemetry, Micrometer, and Quarkus |
+| [Micrometer Integration](micrometer.md) | Operational metrics (counters, gauges, timers) via `observarium-micrometer` |
