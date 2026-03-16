@@ -4,9 +4,11 @@ plugins {
 
 dependencies {
     implementation project(':observarium-spring-boot')
+    implementation project(':observarium-micrometer')
     implementation project(':observarium-github')
     implementation project(':observarium-gitlab')
     implementation 'org.springframework.boot:spring-boot-starter-web:3.4.3'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator:3.4.3'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test:3.4.3'
 }
