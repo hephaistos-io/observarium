@@ -4,6 +4,8 @@ dependencies {
     compileOnly 'org.springframework:spring-web:6.2.3'
     compileOnly 'org.springframework:spring-webmvc:6.2.3'
     compileOnly 'jakarta.servlet:jakarta.servlet-api:6.1.0'
+    compileOnly project(':observarium-micrometer')
+    compileOnly 'io.micrometer:micrometer-core:1.14.5'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test:3.4.3'
     testImplementation 'org.springframework.boot:spring-boot-starter-web:3.4.3'
