@@ -15,6 +15,7 @@ All configuration for a plain Java setup goes through the fluent builder returne
 | `traceContextProvider(TraceContextProvider)` | `TraceContextProvider` | `MdcTraceContextProvider` | Replaces the MDC-based trace reader. See [Custom TraceContextProvider](#custom-tracecontextprovider). |
 | `addPostingService(PostingService)` | `PostingService` | — | Appends a posting service to the list. Can be called multiple times. |
 | `postingServices(List<PostingService>)` | `List<PostingService>` | — | Replaces the entire posting service list at once. |
+| `listener(ObservariumListener)` | `ObservariumListener` | no-op | Registers a lifecycle listener that receives callbacks for exception captures, drops, and posting outcomes. Used by `observarium-micrometer` to bridge events to Micrometer meters. See [ObservariumListener](#observariumlistener). |
 | `queueCapacity(int)` | `int` | `256` | Capacity of the bounded `ArrayBlockingQueue` that backs the single background worker thread. When the queue is full, new events are dropped and a warning is logged. |
 
 **Minimum working example:**
@@ -291,3 +292,29 @@ future.thenAccept(results ->
     })
 );
 ```
+
+---
+
+## ObservariumListener
+
+`ObservariumListener` is a callback interface in `observarium-core` that lets you observe the internal lifecycle of the processing pipeline without modifying core logic. All methods have no-op defaults; implement only the events you care about.
+
+| Method | Called when | Thread |
+|---|---|---|
+| `onExceptionCaptured(Severity)` | An exception is successfully enqueued | Caller's thread |
+| `onExceptionDropped()` | An exception is dropped because the queue is full | Caller's thread |
+| `onPostingCompleted(serviceName, duplicate, success, durationNanos)` | A posting service finishes processing | Background worker thread |
+| `onQueueSizeAvailable(Supplier<Integer>)` | The `Observarium` instance is constructed; provides a live queue-depth supplier | Construction thread |
+
+Implementations must be thread-safe and must not throw. Any exception thrown from a callback is caught and logged but otherwise ignored.
+
+Register a listener via the builder:
+
+```java
+Observarium obs = Observarium.builder()
+    .listener(new MyObservariumListener())
+    .addPostingService(...)
+    .build();
+```
+
+The primary built-in use of this interface is `ObservariumMeterBinder` from `observarium-micrometer`, which bridges these callbacks to Micrometer meters. See [Micrometer Integration](micrometer.md) for setup details.

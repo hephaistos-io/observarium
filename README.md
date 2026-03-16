@@ -150,13 +150,14 @@ See [`demo-quarkus/`](demo-quarkus/) for a runnable example with Jira + Email po
 
 | Module | Purpose |
 |---|---|
-| `observarium-core` | Core engine: fingerprinting, scrubbing, async dispatch, `PostingService` SPI |
+| `observarium-core` | Core engine: fingerprinting, scrubbing, async dispatch, `PostingService` SPI, `ObservariumListener` SPI |
 | `observarium-spring-boot` | Spring Boot auto-configuration and `@ConfigurationProperties` |
 | `observarium-quarkus` | Quarkus CDI extension and config mapping |
 | `observarium-github` | GitHub Issues posting service |
 | `observarium-jira` | Jira Cloud / Data Center posting service |
 | `observarium-gitlab` | GitLab Issues posting service |
 | `observarium-email` | SMTP email posting service |
+| `observarium-micrometer` | Micrometer integration: exposes operational metrics via `ObservariumMeterBinder` |
 | `demo-spring` | Spring Boot demo app (GitHub + GitLab) |
 | `demo-quarkus` | Quarkus demo app (Jira + Email) |
 
@@ -180,6 +181,7 @@ Full documentation is in the [`docs/`](docs/) directory:
 - [Posting Services](docs/posting-services.md)
 - [Custom Posting Service](docs/custom-posting-service.md)
 - [OpenTelemetry Integration](docs/opentelemetry.md)
+- [Micrometer Integration](docs/micrometer.md)
 
 ## License
 
