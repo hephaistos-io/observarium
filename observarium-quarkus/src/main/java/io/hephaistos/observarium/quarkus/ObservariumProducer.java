@@ -1,6 +1,7 @@
 package io.hephaistos.observarium.quarkus;
 
 import io.hephaistos.observarium.Observarium;
+import io.hephaistos.observarium.ObservariumListener;
 import io.hephaistos.observarium.fingerprint.DefaultExceptionFingerprinter;
 import io.hephaistos.observarium.posting.PostingService;
 import io.hephaistos.observarium.posting.PostingServiceFactory;
@@ -41,7 +42,8 @@ public class ObservariumProducer {
 
   @Produces
   @ApplicationScoped
-  public Observarium observarium(Instance<PostingService> discoveredServices) {
+  public Observarium observarium(
+      Instance<PostingService> discoveredServices, Instance<ObservariumListener> listenerInstance) {
     if (!config.enabled()) {
       log.info("Observarium is disabled via configuration");
       return Observarium.builder().build();
@@ -63,6 +65,10 @@ public class ObservariumProducer {
             .scrubber(new DefaultDataScrubber(scrubLevel))
             .traceContextProvider(
                 new MdcTraceContextProvider(config.traceIdMdcKey(), config.spanIdMdcKey()));
+
+    if (listenerInstance.isResolvable()) {
+      builder.listener(listenerInstance.get());
+    }
 
     // Add any PostingService beans discovered via CDI
     for (PostingService service : discoveredServices) {

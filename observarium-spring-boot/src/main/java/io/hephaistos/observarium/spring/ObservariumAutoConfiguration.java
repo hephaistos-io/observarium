@@ -1,6 +1,7 @@
 package io.hephaistos.observarium.spring;
 
 import io.hephaistos.observarium.Observarium;
+import io.hephaistos.observarium.ObservariumListener;
 import io.hephaistos.observarium.fingerprint.DefaultExceptionFingerprinter;
 import io.hephaistos.observarium.fingerprint.ExceptionFingerprinter;
 import io.hephaistos.observarium.handler.ObservariumExceptionHandler;
@@ -22,6 +23,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.context.properties.bind.Bindable;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 
 /**
@@ -77,7 +79,8 @@ public class ObservariumAutoConfiguration {
       DataScrubber scrubber,
       TraceContextProvider traceContextProvider,
       Environment environment,
-      @Autowired(required = false) List<PostingService> postingServices) {
+      @Autowired(required = false) List<PostingService> postingServices,
+      @Autowired(required = false) ObservariumListener listener) {
 
     var builder =
         Observarium.builder()
@@ -85,6 +88,10 @@ public class ObservariumAutoConfiguration {
             .fingerprinter(fingerprinter)
             .scrubber(scrubber)
             .traceContextProvider(traceContextProvider);
+
+    if (listener != null) {
+      builder.listener(listener);
+    }
 
     if (postingServices != null) {
       postingServices.forEach(builder::addPostingService);
@@ -124,5 +131,33 @@ public class ObservariumAutoConfiguration {
   public ObservariumGlobalExceptionHandler observariumGlobalExceptionHandler(
       Observarium observarium) {
     return new ObservariumGlobalExceptionHandler(observarium);
+  }
+
+  /**
+   * Isolated configuration class that is only loaded when both {@code observarium-micrometer} and
+   * Micrometer are on the classpath. The nested class ensures the JVM never attempts to resolve
+   * {@link io.hephaistos.observarium.micrometer.ObservariumMeterBinder} when the dependency is
+   * absent, avoiding {@link NoClassDefFoundError}.
+   */
+  @Configuration
+  @ConditionalOnClass(
+      name = {
+        "io.micrometer.core.instrument.MeterRegistry",
+        "io.hephaistos.observarium.micrometer.ObservariumMeterBinder"
+      })
+  static class MicrometerConfiguration {
+
+    /**
+     * Registers the Micrometer meter binder as the {@link ObservariumListener} when both {@code
+     * observarium-micrometer} and a {@link io.micrometer.core.instrument.MeterRegistry} are on the
+     * classpath. The binder also implements {@link
+     * io.micrometer.core.instrument.binder.MeterBinder}, so Spring Boot Actuator will auto-discover
+     * it and call {@code bindTo()} to register the meters.
+     */
+    @Bean
+    @ConditionalOnMissingBean(ObservariumListener.class)
+    public io.hephaistos.observarium.micrometer.ObservariumMeterBinder observariumMeterBinder() {
+      return new io.hephaistos.observarium.micrometer.ObservariumMeterBinder();
+    }
   }
 }

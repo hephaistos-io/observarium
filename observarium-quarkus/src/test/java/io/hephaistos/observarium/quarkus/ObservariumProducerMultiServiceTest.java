@@ -5,6 +5,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import io.hephaistos.observarium.Observarium;
+import io.hephaistos.observarium.ObservariumListener;
 import io.hephaistos.observarium.event.ExceptionEvent;
 import io.hephaistos.observarium.posting.DuplicateSearchResult;
 import io.hephaistos.observarium.posting.PostingResult;
@@ -38,6 +39,9 @@ class ObservariumProducerMultiServiceTest {
   @SuppressWarnings("unchecked")
   private final Instance<PostingService> emptyInstance = mock(Instance.class);
 
+  @SuppressWarnings("unchecked")
+  private final Instance<ObservariumListener> emptyListenerInstance = mock(Instance.class);
+
   private ObservariumProducer producer;
 
   @BeforeEach
@@ -51,6 +55,7 @@ class ObservariumProducerMultiServiceTest {
     when(config.traceIdMdcKey()).thenReturn("trace_id");
     when(config.spanIdMdcKey()).thenReturn("span_id");
     when(emptyInstance.iterator()).thenReturn(List.<PostingService>of().iterator());
+    when(emptyListenerInstance.isResolvable()).thenReturn(false);
     when(mpConfig.getPropertyNames()).thenReturn(Set.of());
   }
 
@@ -58,7 +63,7 @@ class ObservariumProducerMultiServiceTest {
   void allFourSpiServices_areWired_whenAllEnabledViaConfig() {
     stubAllFourServicesEnabled();
 
-    Observarium result = producer.observarium(emptyInstance);
+    Observarium result = producer.observarium(emptyInstance, emptyListenerInstance);
 
     assertThat(result).isNotNull();
     assertThat(result.config().postingServiceCount()).isEqualTo(4);
@@ -78,7 +83,7 @@ class ObservariumProducerMultiServiceTest {
         "observarium.github.owner", "acme",
         "observarium.github.repo", "backend");
 
-    Observarium result = producer.observarium(instanceWithOne);
+    Observarium result = producer.observarium(instanceWithOne, emptyListenerInstance);
 
     // 1 CDI + at least 1 SPI
     assertThat(result).isNotNull();
@@ -87,7 +92,7 @@ class ObservariumProducerMultiServiceTest {
 
   @Test
   void zeroPostingServices_whenAllDisabled() {
-    Observarium result = producer.observarium(emptyInstance);
+    Observarium result = producer.observarium(emptyInstance, emptyListenerInstance);
 
     assertThat(result).isNotNull();
     assertThat(result.config().postingServiceCount()).isZero();
@@ -97,7 +102,7 @@ class ObservariumProducerMultiServiceTest {
   void observarium_isCreated_evenWhenObservariumIsDisabled() {
     when(config.enabled()).thenReturn(false);
 
-    Observarium result = producer.observarium(emptyInstance);
+    Observarium result = producer.observarium(emptyInstance, emptyListenerInstance);
 
     assertThat(result).isNotNull();
     assertThat(result.config().postingServiceCount()).isZero();
@@ -117,7 +122,7 @@ class ObservariumProducerMultiServiceTest {
         "observarium.email.username", "smtp-user",
         "observarium.email.password", "smtp-pass");
 
-    Observarium result = producer.observarium(emptyInstance);
+    Observarium result = producer.observarium(emptyInstance, emptyListenerInstance);
 
     assertThat(result.config().postingServiceCount()).isEqualTo(2);
   }

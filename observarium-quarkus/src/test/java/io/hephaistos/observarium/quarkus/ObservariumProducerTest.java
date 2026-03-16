@@ -5,6 +5,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import io.hephaistos.observarium.Observarium;
+import io.hephaistos.observarium.ObservariumListener;
 import io.hephaistos.observarium.event.ExceptionEvent;
 import io.hephaistos.observarium.posting.DuplicateSearchResult;
 import io.hephaistos.observarium.posting.PostingResult;
@@ -42,6 +43,9 @@ class ObservariumProducerTest {
   @SuppressWarnings("unchecked")
   private final Instance<PostingService> emptyInstance = mock(Instance.class);
 
+  @SuppressWarnings("unchecked")
+  private final Instance<ObservariumListener> emptyListenerInstance = mock(Instance.class);
+
   private ObservariumProducer producer;
 
   @BeforeEach
@@ -55,6 +59,7 @@ class ObservariumProducerTest {
     when(config.traceIdMdcKey()).thenReturn("trace_id");
     when(config.spanIdMdcKey()).thenReturn("span_id");
     when(emptyInstance.iterator()).thenReturn(List.<PostingService>of().iterator());
+    when(emptyListenerInstance.isResolvable()).thenReturn(false);
 
     // Default: no config properties (SPI factories will get empty maps and return empty)
     when(mpConfig.getPropertyNames()).thenReturn(Set.of());
@@ -64,7 +69,7 @@ class ObservariumProducerTest {
   void observarium_createdWithCorrectScrubLevel_whenEnabled() {
     when(config.scrubLevel()).thenReturn("STRICT");
 
-    Observarium result = producer.observarium(emptyInstance);
+    Observarium result = producer.observarium(emptyInstance, emptyListenerInstance);
 
     assertThat(result).isNotNull();
     assertThat(result.config().scrubLevel()).isEqualTo(ScrubLevel.STRICT);
@@ -74,7 +79,7 @@ class ObservariumProducerTest {
   void observarium_isMinimal_whenDisabled() {
     when(config.enabled()).thenReturn(false);
 
-    Observarium result = producer.observarium(emptyInstance);
+    Observarium result = producer.observarium(emptyInstance, emptyListenerInstance);
 
     assertThat(result).isNotNull();
     assertThat(result.config().postingServiceCount()).isZero();
@@ -87,7 +92,7 @@ class ObservariumProducerTest {
     Instance<PostingService> instance = mock(Instance.class);
     when(instance.iterator()).thenReturn(List.of(stubService).iterator());
 
-    Observarium result = producer.observarium(instance);
+    Observarium result = producer.observarium(instance, emptyListenerInstance);
 
     assertThat(result).isNotNull();
     assertThat(result.config().postingServiceCount()).isGreaterThanOrEqualTo(1);
@@ -102,7 +107,7 @@ class ObservariumProducerTest {
         "observarium.github.owner", "acme",
         "observarium.github.repo", "backend");
 
-    Observarium result = producer.observarium(emptyInstance);
+    Observarium result = producer.observarium(emptyInstance, emptyListenerInstance);
 
     assertThat(result).isNotNull();
     assertThat(result.config().postingServiceCount()).isGreaterThanOrEqualTo(1);
@@ -112,7 +117,7 @@ class ObservariumProducerTest {
   void observarium_fallsBackToBasicScrubLevel_whenScrubLevelConfigIsInvalid() {
     when(config.scrubLevel()).thenReturn("NOT_A_VALID_LEVEL");
 
-    Observarium result = producer.observarium(emptyInstance);
+    Observarium result = producer.observarium(emptyInstance, emptyListenerInstance);
 
     assertThat(result).isNotNull();
     assertThat(result.config().scrubLevel()).isEqualTo(ScrubLevel.BASIC);
@@ -121,7 +126,7 @@ class ObservariumProducerTest {
   @Test
   void observarium_noSpiServices_whenNoneEnabled() {
     // mpConfig returns no properties (set in @BeforeEach)
-    Observarium result = producer.observarium(emptyInstance);
+    Observarium result = producer.observarium(emptyInstance, emptyListenerInstance);
 
     assertThat(result).isNotNull();
     assertThat(result.config().postingServiceCount()).isZero();
@@ -132,7 +137,7 @@ class ObservariumProducerTest {
     when(config.traceIdMdcKey()).thenReturn("X-Trace-Id");
     when(config.spanIdMdcKey()).thenReturn("X-Span-Id");
 
-    Observarium result = producer.observarium(emptyInstance);
+    Observarium result = producer.observarium(emptyInstance, emptyListenerInstance);
 
     assertThat(result).isNotNull();
     assertThat(result.config().scrubLevel()).isEqualTo(ScrubLevel.BASIC);
