@@ -143,38 +143,48 @@ public class EmailPostingService implements PostingService {
    * written out explicitly so the message is self-contained.
    */
   private String buildPlainTextBody(ExceptionEvent event) {
-    var sb = new StringBuilder();
+    var message = event.message() != null ? event.message() : "(no message)";
 
-    sb.append("EXCEPTION NOTIFICATION\n");
-    sb.append("======================\n\n");
-
-    sb.append("Type:      ").append(event.exceptionClass()).append("\n");
-    sb.append("Message:   ")
-        .append(event.message() != null ? event.message() : "(no message)")
-        .append("\n");
-    sb.append("Severity:  ").append(event.severity()).append("\n");
-    sb.append("Timestamp: ").append(event.timestamp()).append("\n");
-    sb.append("Thread:    ").append(event.threadName()).append("\n");
-
+    var tracing = new StringBuilder();
     if (event.traceId() != null) {
-      sb.append("Trace ID:  ").append(event.traceId()).append("\n");
+      tracing.append("Trace ID:  %s\n".formatted(event.traceId()));
     }
     if (event.spanId() != null) {
-      sb.append("Span ID:   ").append(event.spanId()).append("\n");
+      tracing.append("Span ID:   %s\n".formatted(event.spanId()));
     }
 
+    var tags = "";
     if (!event.tags().isEmpty()) {
-      sb.append("\nTAGS\n");
-      sb.append("----\n");
-      event.tags().forEach((k, v) -> sb.append(k).append(": ").append(v).append("\n"));
+      var tagSection = new StringBuilder("\nTAGS\n----\n");
+      event.tags().forEach((k, v) -> tagSection.append("%s: %s\n".formatted(k, v)));
+      tags = tagSection.toString();
     }
 
-    sb.append("\nSTACK TRACE\n");
-    sb.append("-----------\n");
-    sb.append(event.rawStackTrace()).append("\n");
+    return """
+        EXCEPTION NOTIFICATION
+        ======================
 
-    sb.append("\nFingerprint: ").append(event.fingerprint()).append("\n");
+        Type:      %s
+        Message:   %s
+        Severity:  %s
+        Timestamp: %s
+        Thread:    %s
+        %s%s
+        STACK TRACE
+        -----------
+        %s
 
-    return sb.toString();
+        Fingerprint: %s
+        """
+        .formatted(
+            event.exceptionClass(),
+            message,
+            event.severity(),
+            event.timestamp(),
+            event.threadName(),
+            tracing,
+            tags,
+            event.rawStackTrace(),
+            event.fingerprint());
   }
 }
