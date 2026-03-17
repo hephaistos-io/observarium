@@ -74,6 +74,23 @@ public interface PostingService {
   PostingResult commentOnIssue(String externalIssueId, ExceptionEvent event);
 
   /**
+   * Posts a final notice comment on an existing issue indicating that the configured comment limit
+   * has been reached and Observarium will stop commenting.
+   *
+   * <p>The default implementation returns a failure result. Posting service implementations that
+   * support commenting should override this to post the notice using {@link
+   * IssueFormatter#markdownCommentLimitNotice(int)}.
+   *
+   * @param externalIssueId the tracker-specific issue identifier returned by {@link
+   *     DuplicateSearchResult#externalIssueId()}; never null
+   * @param commentLimit the configured maximum number of duplicate comments
+   * @return a {@link PostingResult} indicating success or failure; never null
+   */
+  default PostingResult postCommentLimitNotice(String externalIssueId, int commentLimit) {
+    return PostingResult.failure("Comment limit notice not supported by " + name());
+  }
+
+  /**
    * Derives a label from the event fingerprint for tagging issues in external trackers.
    *
    * <p>The label uses the first 12 characters of the fingerprint hash prefixed with {@code
