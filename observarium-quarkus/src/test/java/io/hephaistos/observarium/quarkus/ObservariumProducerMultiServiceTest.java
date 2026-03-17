@@ -54,6 +54,7 @@ class ObservariumProducerMultiServiceTest {
     when(config.scrubLevel()).thenReturn("BASIC");
     when(config.traceIdMdcKey()).thenReturn("trace_id");
     when(config.spanIdMdcKey()).thenReturn("span_id");
+    when(config.maxDuplicateComments()).thenReturn(5);
     when(emptyInstance.iterator()).thenReturn(List.<PostingService>of().iterator());
     when(emptyListenerInstance.isResolvable()).thenReturn(false);
     when(mpConfig.getPropertyNames()).thenReturn(Set.of());

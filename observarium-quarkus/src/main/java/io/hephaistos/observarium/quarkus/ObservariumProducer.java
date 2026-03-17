@@ -58,13 +58,22 @@ public class ObservariumProducer {
       scrubLevel = ScrubLevel.BASIC;
     }
 
+    int maxDuplicateComments = config.maxDuplicateComments();
+    if (maxDuplicateComments < -1 || maxDuplicateComments == 0) {
+      log.warn(
+          "Invalid observarium.max-duplicate-comments value '{}'; falling back to default 5",
+          maxDuplicateComments);
+      maxDuplicateComments = 5;
+    }
+
     var builder =
         Observarium.builder()
             .scrubLevel(scrubLevel)
             .fingerprinter(new DefaultExceptionFingerprinter())
             .scrubber(new DefaultDataScrubber(scrubLevel))
             .traceContextProvider(
-                new MdcTraceContextProvider(config.traceIdMdcKey(), config.spanIdMdcKey()));
+                new MdcTraceContextProvider(config.traceIdMdcKey(), config.spanIdMdcKey()))
+            .maxDuplicateComments(maxDuplicateComments);
 
     if (listenerInstance.isResolvable()) {
       builder.listener(listenerInstance.get());
