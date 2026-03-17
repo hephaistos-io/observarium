@@ -2,6 +2,7 @@ package io.hephaistos.observarium.handler;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import io.hephaistos.observarium.ObservariumConfig;
 import io.hephaistos.observarium.ObservariumListener;
 import io.hephaistos.observarium.event.ExceptionEvent;
 import io.hephaistos.observarium.event.Severity;
@@ -44,6 +45,8 @@ class ExceptionProcessorTest {
     final List<ExceptionEvent> createIssueCalls = new ArrayList<>();
     final List<String> commentIssueIds = new ArrayList<>();
     final List<ExceptionEvent> commentEventCalls = new ArrayList<>();
+    final List<String> limitNoticeIssueIds = new ArrayList<>();
+    final List<Integer> limitNoticeLimits = new ArrayList<>();
 
     RecordingPostingService(String name, DuplicateSearchResult duplicateResult) {
       this.serviceName = name;
@@ -70,6 +73,13 @@ class ExceptionProcessorTest {
     public PostingResult commentOnIssue(String externalIssueId, ExceptionEvent event) {
       commentIssueIds.add(externalIssueId);
       commentEventCalls.add(event);
+      return PostingResult.success(externalIssueId, "https://tracker/" + externalIssueId);
+    }
+
+    @Override
+    public PostingResult postCommentLimitNotice(String externalIssueId, int commentLimit) {
+      limitNoticeIssueIds.add(externalIssueId);
+      limitNoticeLimits.add(commentLimit);
       return PostingResult.success(externalIssueId, "https://tracker/" + externalIssueId);
     }
   }
@@ -181,9 +191,25 @@ class ExceptionProcessorTest {
 
   private static final ObservariumListener NOOP_LISTENER = new ObservariumListener() {};
 
+  /** Records every {@link ObservariumListener#onCommentDropped} call. */
+  private static class RecordingListener implements ObservariumListener {
+    final List<String> droppedServiceNames = new ArrayList<>();
+
+    @Override
+    public void onCommentDropped(String serviceName) {
+      droppedServiceNames.add(serviceName);
+    }
+  }
+
   private static ExceptionProcessor processor(List<PostingService> services) {
     return new ExceptionProcessor(
         FIXED_FINGERPRINTER, PASSTHROUGH_SCRUBBER, services, NOOP_LISTENER);
+  }
+
+  private static ExceptionProcessor processor(
+      List<PostingService> services, ObservariumListener listener, int maxDuplicateComments) {
+    return new ExceptionProcessor(
+        FIXED_FINGERPRINTER, PASSTHROUGH_SCRUBBER, services, listener, maxDuplicateComments);
   }
 
   /** Calls process with pre-captured trace context (as Observarium now does eagerly). */
@@ -480,5 +506,120 @@ class ExceptionProcessorTest {
     assertTrue(
         results.get(0).errorMessage().contains("comment-fail"),
         "Failure message must include the service name for diagnostics");
+  }
+
+  // -----------------------------------------------------------------------
+  // Tests: comment limit
+  // -----------------------------------------------------------------------
+
+  @Test
+  void duplicate_belowLimit_callsCommentOnIssue() {
+    String issueId = "ISSUE-10";
+    RecordingPostingService service =
+        new RecordingPostingService(
+            "svc", DuplicateSearchResult.found(issueId, "https://tracker/" + issueId, 2));
+
+    ExceptionProcessor proc = processor(List.of(service), NOOP_LISTENER, 5);
+    process(proc, new RuntimeException("below limit"), Severity.ERROR, Map.of());
+
+    assertEquals(1, service.commentIssueIds.size(), "commentOnIssue must be called once");
+    assertEquals(
+        0, service.limitNoticeIssueIds.size(), "postCommentLimitNotice must not be called");
+  }
+
+  @Test
+  void duplicate_atLimit_callsPostCommentLimitNotice() {
+    String issueId = "ISSUE-20";
+    RecordingPostingService service =
+        new RecordingPostingService(
+            "svc", DuplicateSearchResult.found(issueId, "https://tracker/" + issueId, 5));
+
+    ExceptionProcessor proc = processor(List.of(service), NOOP_LISTENER, 5);
+    process(proc, new RuntimeException("at limit"), Severity.ERROR, Map.of());
+
+    assertEquals(
+        1, service.limitNoticeIssueIds.size(), "postCommentLimitNotice must be called once");
+    assertEquals(
+        issueId,
+        service.limitNoticeIssueIds.get(0),
+        "postCommentLimitNotice must receive the correct issue id");
+    assertEquals(
+        5,
+        service.limitNoticeLimits.get(0),
+        "postCommentLimitNotice must receive the configured limit");
+    assertEquals(0, service.commentIssueIds.size(), "commentOnIssue must not be called");
+  }
+
+  @Test
+  void duplicate_overLimit_dropsComment() {
+    String issueId = "ISSUE-30";
+    RecordingPostingService service =
+        new RecordingPostingService(
+            "svc", DuplicateSearchResult.found(issueId, "https://tracker/" + issueId, 6));
+
+    ExceptionProcessor proc = processor(List.of(service), NOOP_LISTENER, 5);
+    List<PostingResult> results =
+        process(proc, new RuntimeException("over limit"), Severity.ERROR, Map.of());
+
+    assertEquals(0, service.commentIssueIds.size(), "commentOnIssue must not be called");
+    assertEquals(
+        0, service.limitNoticeIssueIds.size(), "postCommentLimitNotice must not be called");
+    assertEquals(1, results.size());
+    assertTrue(results.get(0).success(), "Dropped comment must still yield a success result");
+  }
+
+  @Test
+  void duplicate_overLimit_notifiesListener() {
+    String issueId = "ISSUE-40";
+    RecordingPostingService service =
+        new RecordingPostingService(
+            "svc", DuplicateSearchResult.found(issueId, "https://tracker/" + issueId, 10));
+    RecordingListener listener = new RecordingListener();
+
+    ExceptionProcessor proc = processor(List.of(service), listener, 5);
+    process(proc, new RuntimeException("over limit notify"), Severity.ERROR, Map.of());
+
+    assertEquals(1, listener.droppedServiceNames.size(), "onCommentDropped must be called once");
+    assertEquals(
+        "svc",
+        listener.droppedServiceNames.get(0),
+        "onCommentDropped must receive the correct service name");
+  }
+
+  @Test
+  void duplicate_unknownCount_fallsOpenToComment() {
+    // DuplicateSearchResult.found(id, url) — 2-arg — sets commentCount to COMMENT_COUNT_UNKNOWN.
+    // The processor must treat an unknown count as fail-open and call commentOnIssue.
+    String issueId = "ISSUE-50";
+    RecordingPostingService service =
+        new RecordingPostingService(
+            "svc", DuplicateSearchResult.found(issueId, "https://tracker/" + issueId));
+
+    ExceptionProcessor proc = processor(List.of(service), NOOP_LISTENER, 5);
+    process(proc, new RuntimeException("unknown count"), Severity.ERROR, Map.of());
+
+    assertEquals(
+        1, service.commentIssueIds.size(), "commentOnIssue must be called when count is unknown");
+    assertEquals(
+        0, service.limitNoticeIssueIds.size(), "postCommentLimitNotice must not be called");
+  }
+
+  @Test
+  void duplicate_unlimitedConfig_alwaysComments() {
+    // When the limit is UNLIMITED_COMMENTS (-1) the cap is disabled; commentOnIssue must always
+    // be called regardless of how high the comment count is.
+    String issueId = "ISSUE-60";
+    RecordingPostingService service =
+        new RecordingPostingService(
+            "svc", DuplicateSearchResult.found(issueId, "https://tracker/" + issueId, 100));
+
+    ExceptionProcessor proc =
+        processor(List.of(service), NOOP_LISTENER, ObservariumConfig.UNLIMITED_COMMENTS);
+    process(proc, new RuntimeException("unlimited"), Severity.ERROR, Map.of());
+
+    assertEquals(
+        1, service.commentIssueIds.size(), "commentOnIssue must be called when limit is UNLIMITED");
+    assertEquals(
+        0, service.limitNoticeIssueIds.size(), "postCommentLimitNotice must not be called");
   }
 }

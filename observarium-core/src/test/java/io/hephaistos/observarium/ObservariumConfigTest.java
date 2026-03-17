@@ -47,4 +47,23 @@ class ObservariumConfigTest {
     ObservariumConfig b = new ObservariumConfig(ScrubLevel.BASIC, 2);
     assertNotEquals(a, b);
   }
+
+  @Test
+  void constructor_threeArg_storesMaxDuplicateComments() {
+    ObservariumConfig config = new ObservariumConfig(ScrubLevel.BASIC, 1, 10);
+    assertEquals(10, config.maxDuplicateComments());
+  }
+
+  @Test
+  void constructor_twoArg_defaultsToFiveMaxDuplicateComments() {
+    ObservariumConfig config = new ObservariumConfig(ScrubLevel.BASIC, 1);
+    assertEquals(5, config.maxDuplicateComments());
+  }
+
+  @Test
+  void twoConfigsWithDifferentMaxDuplicateComments_areNotEqual() {
+    ObservariumConfig a = new ObservariumConfig(ScrubLevel.BASIC, 1, 5);
+    ObservariumConfig b = new ObservariumConfig(ScrubLevel.BASIC, 1, 10);
+    assertNotEquals(a, b);
+  }
 }

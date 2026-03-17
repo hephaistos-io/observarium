@@ -57,6 +57,19 @@ public interface ObservariumListener {
       String serviceName, boolean duplicate, boolean success, long durationNanos) {}
 
   /**
+   * Called when a duplicate comment is suppressed because the issue has already reached the
+   * configured comment limit.
+   *
+   * <p>This signals that the exception is still occurring but Observarium has stopped adding
+   * comments to avoid flooding the issue tracker. Monitor the {@code observarium.comments.dropped}
+   * metric for ongoing occurrence counts.
+   *
+   * @param serviceName the {@link io.hephaistos.observarium.posting.PostingService#name()} of the
+   *     service whose comment was dropped
+   */
+  default void onCommentDropped(String serviceName) {}
+
+  /**
    * Called once during {@link Observarium} construction to provide access to the current queue
    * depth.
    *
