@@ -54,6 +54,8 @@ public class ObservariumMeterBinder implements ObservariumListener, MeterBinder,
   private volatile MeterRegistry registry;
   private final ConcurrentHashMap<String, Counter> capturedCounters = new ConcurrentHashMap<>();
   private volatile Counter droppedCounter;
+  private final ConcurrentHashMap<String, Counter> commentDroppedCounters =
+      new ConcurrentHashMap<>();
   private final ConcurrentHashMap<String, Timer> postingTimers = new ConcurrentHashMap<>();
 
   private final Object gaugeLock = new Object();
@@ -140,6 +142,24 @@ public class ObservariumMeterBinder implements ObservariumListener, MeterBinder,
   }
 
   @Override
+  public void onCommentDropped(String serviceName) {
+    if (registry == null) {
+      return;
+    }
+    commentDroppedCounters
+        .computeIfAbsent(
+            serviceName,
+            name ->
+                Counter.builder("observarium.comments.dropped")
+                    .description(
+                        "Duplicate comments suppressed because the issue reached its comment limit")
+                    .tag("service", name)
+                    .tags(commonTags)
+                    .register(registry))
+        .increment();
+  }
+
+  @Override
   public void onPostingCompleted(
       String serviceName, boolean duplicate, boolean success, long durationNanos) {
     if (registry == null) {
@@ -182,6 +202,9 @@ public class ObservariumMeterBinder implements ObservariumListener, MeterBinder,
       reg.remove(droppedCounter);
       droppedCounter = null;
     }
+
+    commentDroppedCounters.values().forEach(reg::remove);
+    commentDroppedCounters.clear();
 
     postingTimers.values().forEach(reg::remove);
     postingTimers.clear();
