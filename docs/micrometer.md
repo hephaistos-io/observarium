@@ -14,6 +14,7 @@ This module is a metrics facade only — it records numbers via Micrometer's API
 | `observarium.exceptions.dropped` | Counter | — | Exceptions dropped because the processing queue was full |
 | `observarium.queue.size` | Gauge | — | Current number of exceptions in the processing queue |
 | `observarium.posting.duration` | Timer | `service`, `action` (`create`/`comment`), `outcome` (`success`/`failure`) | Wall-clock time for each posting service call, including the duplicate search |
+| `observarium.comments.dropped` | Counter | `service` | Duplicate comments suppressed because the issue reached its comment limit |
 
 The `severity` tag value on `observarium.exceptions.captured` is the lowercase name of the `Severity` enum: `info`, `warning`, `error`, or `fatal`.
 
@@ -134,6 +135,7 @@ curl http://localhost:8080/actuator/metrics/observarium.exceptions.captured
 curl http://localhost:8080/actuator/metrics/observarium.exceptions.dropped
 curl http://localhost:8080/actuator/metrics/observarium.queue.size
 curl http://localhost:8080/actuator/metrics/observarium.posting.duration
+curl http://localhost:8080/actuator/metrics/observarium.comments.dropped
 ```
 
 To expose the metrics endpoint, add the following to `application.yml` if it is not already exposed:
@@ -261,5 +263,6 @@ Each unique combination of tags creates one meter entry in the registry. For the
 - `observarium.exceptions.dropped` — exactly one entry, no tags.
 - `observarium.queue.size` — exactly one entry, no tags.
 - `observarium.posting.duration` — one entry per combination of `service` × `action` × `outcome`. With two actions (`create`, `comment`) and two outcomes (`success`, `failure`), each posting service contributes at most 4 timer series. The total is bounded by the number of configured posting services multiplied by 4.
+- `observarium.comments.dropped` — one entry per posting service name. Bounded by the number of configured posting services.
 
 The total meter count is small and fixed at startup for any given configuration. There is no risk of cardinality explosion from normal use.

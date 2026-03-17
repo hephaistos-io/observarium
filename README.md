@@ -48,8 +48,15 @@ sequenceDiagram
         PostingService-->>ExceptionProcessor: DuplicateSearchResult
 
         alt duplicate found
-            ExceptionProcessor->>PostingService: commentOnIssue(issueId, event)
-            PostingService-->>ExceptionProcessor: PostingResult
+            alt count < maxDuplicateComments
+                ExceptionProcessor->>PostingService: commentOnIssue(issueId, event)
+                PostingService-->>ExceptionProcessor: PostingResult
+            else count == maxDuplicateComments
+                ExceptionProcessor->>PostingService: postCommentLimitNotice(issueId, limit)
+                PostingService-->>ExceptionProcessor: PostingResult
+            else count > maxDuplicateComments
+                Note right of ExceptionProcessor: drop — increment<br/>observarium.comments.dropped
+            end
         else no duplicate
             ExceptionProcessor->>PostingService: createIssue(event)
             PostingService-->>ExceptionProcessor: PostingResult
@@ -165,12 +172,12 @@ All posting modules use the JDK built-in `java.net.http.HttpClient` and Gson —
 
 ## Posting Service Feature Matrix
 
-| Service | Create issue | Deduplication | Comment on duplicate |
-|---|---|---|---|
-| GitHub | Yes | Yes — label-based search | Yes |
-| Jira | Yes | Yes — JQL label search | Yes |
-| GitLab | Yes | Yes — label-based search | Yes |
-| Email | Yes | No | No |
+| Service | Create issue | Deduplication | Comment on duplicate | Comment limit |
+|---|---|---|---|---|
+| GitHub | Yes | Yes — label-based search | Yes | Yes |
+| Jira | Yes | Yes — JQL label search | Yes | Yes |
+| GitLab | Yes | Yes — label-based search | Yes | Yes |
+| Email | Yes | No | No | N/A |
 
 ## Documentation
 
