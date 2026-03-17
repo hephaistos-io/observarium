@@ -17,6 +17,7 @@ All configuration for a plain Java setup goes through the fluent builder returne
 | `postingServices(List<PostingService>)` | `List<PostingService>` | — | Replaces the entire posting service list at once. |
 | `listener(ObservariumListener)` | `ObservariumListener` | no-op | Registers a lifecycle listener that receives callbacks for exception captures, drops, and posting outcomes. Used by `observarium-micrometer` to bridge events to Micrometer meters. See [ObservariumListener](#observariumlistener). |
 | `queueCapacity(int)` | `int` | `256` | Capacity of the bounded `ArrayBlockingQueue` that backs the single background worker thread. When the queue is full, new events are dropped and a warning is logged. |
+| `maxDuplicateComments(int)` | `int` | `5` | Maximum number of duplicate comments posted on a single existing issue before further recurrences are dropped silently. Use `-1` for unlimited. See [Duplicate Comment Limit](#duplicate-comment-limit). |
 
 **Minimum working example:**
 
@@ -60,6 +61,7 @@ All properties are under the `observarium` prefix. Use either `application.yml` 
 | `observarium.email.password` | `String` | — | SMTP authentication password. |
 | `observarium.email.auth` | `boolean` | `true` | Enable SMTP authentication. |
 | `observarium.email.start-tls` | `boolean` | `true` | Enable STARTTLS. |
+| `observarium.max-duplicate-comments` | `int` | `5` | Maximum number of duplicate comments posted on a single existing issue. Use `-1` for unlimited. See [Duplicate Comment Limit](#duplicate-comment-limit). |
 
 **Example `application.yml`:**
 
@@ -83,7 +85,7 @@ observarium:
 
 Identical keys to Spring Boot; use `application.properties` or `application.yaml`.
 
-The Quarkus module uses the same property names as the Spring Boot module. Refer to the Spring Boot table above for the complete list.
+The Quarkus module uses the same property names as the Spring Boot module, including `observarium.max-duplicate-comments`. Refer to the Spring Boot table above for the complete list.
 
 **Example `application.properties`:**
 
@@ -318,3 +320,57 @@ Observarium obs = Observarium.builder()
 ```
 
 The primary built-in use of this interface is `ObservariumMeterBinder` from `observarium-micrometer`, which bridges these callbacks to Micrometer meters. See [Micrometer Integration](micrometer.md) for setup details.
+
+---
+
+## Duplicate Comment Limit
+
+When an exception recurs frequently, Observarium caps the number of duplicate comments posted on an existing issue to prevent issue tracker noise.
+
+### Behaviour by threshold
+
+For each duplicate occurrence, `ExceptionProcessor` retrieves the current comment count from `DuplicateSearchResult` and compares it against `maxDuplicateComments`:
+
+| Condition | Action |
+|---|---|
+| `commentCount < maxDuplicateComments` | Normal `commentOnIssue` call — the recurrence is appended to the issue. |
+| `commentCount == maxDuplicateComments` | `postCommentLimitNotice` is called once — a final "Comment Limit Reached" notice is posted on the issue. |
+| `commentCount > maxDuplicateComments` | The occurrence is dropped silently. `observarium.comments.dropped` counter is incremented. `ObservariumListener.onCommentDropped(serviceName)` is called. |
+
+> **Note:** The notice itself is an additional comment, so the total number of comments Observarium may post is `maxDuplicateComments + 1` (N regular comments plus the final notice). For example, with `maxDuplicateComments=5`, up to 6 comments may appear on the issue: 5 duplicate occurrence comments and 1 limit notice.
+
+### Comment count source
+
+The comment count is read from the tracker API during `findDuplicate()`:
+
+| Backend | API field |
+|---|---|
+| GitHub | `comments` field on the issue JSON |
+| GitLab | `user_notes_count` field on the issue JSON |
+| Jira | `fields.comment.total` from the issue response |
+
+The count reflects **all comments on the issue**, not just those posted by Observarium. This means comments left by human users, bots, or other integrations also count toward the limit. This is intentional: if an issue already has significant discussion, additional automated noise is unwanted regardless of who posted the existing comments.
+
+> **GitLab caveat:** GitLab's `user_notes_count` includes system-generated notes (label changes, milestone updates, etc.) in addition to user comments. This means the limit may trigger earlier than expected on issues with frequent label or milestone activity.
+
+### Custom posting services and fail-open behaviour
+
+`DuplicateSearchResult.found(id, url)` (the 2-argument form) returns `COMMENT_COUNT_UNKNOWN = -1` for the comment count. When `ExceptionProcessor` sees `-1`, it treats the count as below the limit and always allows the comment through. This means custom `PostingService` implementations that have not been updated to return a comment count continue to work without restriction. See [Custom Posting Service](custom-posting-service.md#duplicatesearchresult) for how to supply the count.
+
+### Configuration example
+
+**Plain Java builder:**
+
+```java
+Observarium obs = Observarium.builder()
+    .maxDuplicateComments(10)          // cap at 10 comments per issue
+    // .maxDuplicateComments(-1)       // unlimited
+    .addPostingService(new GitHubPostingService(GitHubConfig.of(token, "owner", "repo")))
+    .build();
+```
+
+**Spring Boot / Quarkus property:**
+
+```properties
+observarium.max-duplicate-comments=10
+```

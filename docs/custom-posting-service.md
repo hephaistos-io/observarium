@@ -34,6 +34,15 @@ public interface PostingService {
      * externalIssueId is the value from the DuplicateSearchResult returned by findDuplicate().
      */
     PostingResult commentOnIssue(String externalIssueId, ExceptionEvent event);
+
+    /**
+     * Post a one-time "Comment Limit Reached" notice on the issue when the duplicate comment
+     * count equals maxDuplicateComments. Called at most once per issue per limit cycle.
+     * The default returns failure; override in backends that support issue comments.
+     */
+    default PostingResult postCommentLimitNotice(String externalIssueId, int commentLimit) {
+        return PostingResult.failure("postCommentLimitNotice not implemented by " + name());
+    }
 }
 ```
 
@@ -66,12 +75,15 @@ PostingResult.success("ISSUE-42", "https://example.com/issues/42");
 PostingResult.failure("HTTP 429: rate limit exceeded");
 ```
 
-**`DuplicateSearchResult`** — return value for `findDuplicate`:
+**`DuplicateSearchResult`** — return value for `findDuplicate`: <a name="duplicatesearchresult"></a>
 
 ```java
-DuplicateSearchResult.notFound();                                         // no duplicate
-DuplicateSearchResult.found("ISSUE-42", "https://example.com/issues/42"); // duplicate exists
+DuplicateSearchResult.notFound();
+DuplicateSearchResult.found("ISSUE-42", "https://example.com/issues/42");      // comment count unknown
+DuplicateSearchResult.found("ISSUE-42", "https://example.com/issues/42", 7);   // 7 comments on issue
 ```
+
+The 2-argument form returns `COMMENT_COUNT_UNKNOWN = -1`, which causes fail-open behaviour: `ExceptionProcessor` treats the count as below the configured limit and always allows the comment through. Supply the actual count via the 3-argument form to enable the comment limit for your backend.
 
 ### Deduplication strategy recommendations
 
@@ -79,6 +91,7 @@ DuplicateSearchResult.found("ISSUE-42", "https://example.com/issues/42"); // dup
 - **Search only open/active issues** — if a duplicate issue was closed or resolved, creating a fresh issue is usually the right behaviour.
 - **Fail safe to `notFound()`** — if the search API returns an error, return `DuplicateSearchResult.notFound()` so a new issue is created rather than swallowing the event.
 - **No dedup? Return `notFound()` always** — backends like email cannot search previous messages; returning `notFound()` unconditionally is correct for them.
+- **Return the comment count** — if your backend's search API returns a comment count on the existing issue, pass it as the third argument to `DuplicateSearchResult.found()`. This enables the `maxDuplicateComments` cap. Omitting the count causes fail-open behaviour (unlimited comments), which is safe but bypasses the limit.
 
 ---
 
