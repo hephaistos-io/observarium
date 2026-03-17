@@ -114,6 +114,25 @@ class JiraPostingServiceWireMockTest {
   }
 
   @Test
+  void findDuplicate_returnsCommentCount_fromFieldsCommentTotal(WireMockRuntimeInfo wmInfo) {
+    stubFor(
+        post(urlPathEqualTo("/rest/api/3/search/jql"))
+            .willReturn(
+                aResponse()
+                    .withStatus(200)
+                    .withHeader("Content-Type", "application/json")
+                    .withBody(
+                        "{\"issues\":[{\"key\":\"OBS-42\",\"fields\":"
+                            + "{\"comment\":{\"total\":3,\"comments\":[]}}}]}")));
+
+    DuplicateSearchResult result = buildService(wmInfo).findDuplicate(buildEvent());
+
+    assertTrue(result.found());
+    assertEquals("OBS-42", result.externalIssueId());
+    assertEquals(3, result.commentCount());
+  }
+
+  @Test
   void findDuplicate_returnsNotFound_whenNoIssues(WireMockRuntimeInfo wmInfo) {
     stubFor(
         post(urlPathEqualTo("/rest/api/3/search/jql"))
@@ -292,6 +311,65 @@ class JiraPostingServiceWireMockTest {
                     .withBody("{\"errorMessages\":[\"Issue OBS-42 not found\"]}")));
 
     PostingResult result = buildService(wmInfo).commentOnIssue("OBS-42", buildEvent());
+
+    assertFalse(result.success());
+    assertNotNull(result.errorMessage());
+    assertTrue(result.errorMessage().contains("404"));
+  }
+
+  // ---------------------------------------------------------------------------
+  // postCommentLimitNotice tests
+  // ---------------------------------------------------------------------------
+
+  @Test
+  void postCommentLimitNotice_postsToCommentEndpoint(WireMockRuntimeInfo wmInfo) {
+    stubFor(
+        post(urlPathEqualTo("/rest/api/3/issue/OBS-42/comment"))
+            .willReturn(
+                aResponse()
+                    .withStatus(201)
+                    .withHeader("Content-Type", "application/json")
+                    .withBody(
+                        "{\"id\":\"20002\",\"self\":\"http://example.atlassian.net/rest/api/3/issue/OBS-42/comment/20002\"}")));
+
+    buildService(wmInfo).postCommentLimitNotice("OBS-42", 5);
+
+    verify(
+        postRequestedFor(urlPathEqualTo("/rest/api/3/issue/OBS-42/comment"))
+            .withHeader("Authorization", equalTo(expectedBasicAuthHeader()))
+            .withHeader("Content-Type", equalTo("application/json"))
+            .withRequestBody(matchingJsonPath("$.body.type", equalTo("doc")))
+            .withRequestBody(matchingJsonPath("$.body.content[0].type", equalTo("paragraph"))));
+  }
+
+  @Test
+  void postCommentLimitNotice_returnsSuccess_on201(WireMockRuntimeInfo wmInfo) {
+    stubFor(
+        post(urlPathEqualTo("/rest/api/3/issue/OBS-42/comment"))
+            .willReturn(
+                aResponse()
+                    .withStatus(201)
+                    .withHeader("Content-Type", "application/json")
+                    .withBody(
+                        "{\"id\":\"20002\",\"self\":\"http://example.atlassian.net/rest/api/3/issue/OBS-42/comment/20002\"}")));
+
+    PostingResult result = buildService(wmInfo).postCommentLimitNotice("OBS-42", 5);
+
+    assertTrue(result.success());
+    assertEquals("OBS-42", result.externalIssueId());
+    assertNull(result.errorMessage());
+  }
+
+  @Test
+  void postCommentLimitNotice_returnsFailure_on404(WireMockRuntimeInfo wmInfo) {
+    stubFor(
+        post(urlPathEqualTo("/rest/api/3/issue/OBS-999/comment"))
+            .willReturn(
+                aResponse()
+                    .withStatus(404)
+                    .withBody("{\"errorMessages\":[\"Issue OBS-999 not found\"]}")));
+
+    PostingResult result = buildService(wmInfo).postCommentLimitNotice("OBS-999", 5);
 
     assertFalse(result.success());
     assertNotNull(result.errorMessage());

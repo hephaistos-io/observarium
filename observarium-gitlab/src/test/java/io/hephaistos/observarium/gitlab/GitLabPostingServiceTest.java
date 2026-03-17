@@ -456,6 +456,115 @@ class GitLabPostingServiceTest {
   }
 
   // -------------------------------------------------------------------------
+  // findDuplicate() — comment count
+  // -------------------------------------------------------------------------
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void findDuplicate_returnsKnownCommentCount_whenIssueHasUserNotesCountField() throws Exception {
+    String responseBody =
+        """
+                [
+                  {
+                    "iid": 5,
+                    "web_url": "https://gitlab.example.com/group/proj/-/issues/5",
+                    "user_notes_count": 7
+                  }
+                ]
+                """;
+
+    HttpResponse<String> httpResponse = mock(HttpResponse.class);
+    when(httpResponse.statusCode()).thenReturn(200);
+    when(httpResponse.body()).thenReturn(responseBody);
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenReturn(httpResponse);
+
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    DuplicateSearchResult result = service.findDuplicate(buildEvent("SomeException", "boom"));
+
+    assertTrue(result.found());
+    assertEquals(7, result.commentCount());
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void findDuplicate_returnsUnknownCommentCount_whenIssueHasNoUserNotesCountField()
+      throws Exception {
+    // GitLab response without the "user_notes_count" field
+    String responseBody =
+        """
+                [
+                  { "iid": 5, "web_url": "https://gitlab.example.com/group/proj/-/issues/5" }
+                ]
+                """;
+
+    HttpResponse<String> httpResponse = mock(HttpResponse.class);
+    when(httpResponse.statusCode()).thenReturn(200);
+    when(httpResponse.body()).thenReturn(responseBody);
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenReturn(httpResponse);
+
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    DuplicateSearchResult result = service.findDuplicate(buildEvent("SomeException", "boom"));
+
+    assertTrue(result.found());
+    assertEquals(DuplicateSearchResult.COMMENT_COUNT_UNKNOWN, result.commentCount());
+  }
+
+  // -------------------------------------------------------------------------
+  // postCommentLimitNotice() — success paths
+  // -------------------------------------------------------------------------
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void postCommentLimitNotice_returnsSuccess_withIssueId() throws Exception {
+    HttpResponse<String> httpResponse = mock(HttpResponse.class);
+    when(httpResponse.statusCode()).thenReturn(201);
+    when(httpResponse.body()).thenReturn("{\"id\": 999, \"body\": \"comment limit notice\"}");
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenReturn(httpResponse);
+
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    PostingResult result = service.postCommentLimitNotice("5", 10);
+
+    assertTrue(result.success());
+    assertEquals("5", result.externalIssueId());
+    assertNull(result.url());
+  }
+
+  // -------------------------------------------------------------------------
+  // postCommentLimitNotice() — error paths
+  // -------------------------------------------------------------------------
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void postCommentLimitNotice_returnsFailure_whenGitLabReturns404() throws Exception {
+    HttpResponse<String> httpResponse = mock(HttpResponse.class);
+    when(httpResponse.statusCode()).thenReturn(404);
+    when(httpResponse.body()).thenReturn("{\"message\":\"404 Issue Not Found\"}");
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenReturn(httpResponse);
+
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    PostingResult result = service.postCommentLimitNotice("9999", 10);
+
+    assertFalse(result.success());
+    assertNotNull(result.errorMessage());
+    assertTrue(result.errorMessage().contains("404"));
+  }
+
+  @Test
+  void postCommentLimitNotice_throwsNullPointerException_whenExternalIssueIdIsNull() {
+    GitLabPostingService service =
+        new GitLabPostingService(CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    assertThrows(NullPointerException.class, () -> service.postCommentLimitNotice(null, 10));
+  }
+
+  // -------------------------------------------------------------------------
   // URL encoding — namespace/path project IDs
   // -------------------------------------------------------------------------
 
@@ -520,6 +629,26 @@ class GitLabPostingServiceTest {
         new GitLabPostingService(
             NAMESPACE_CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
     service.commentOnIssue("3", buildEvent("SomeException", "boom"));
+
+    verify(mockHttpClient)
+        .send(
+            argThat(req -> req.uri().toString().contains("mygroup%2Fmyproject")),
+            any(HttpResponse.BodyHandler.class));
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void postCommentLimitNotice_urlEncodesNamespaceProjectId() throws Exception {
+    HttpResponse<String> httpResponse = mock(HttpResponse.class);
+    when(httpResponse.statusCode()).thenReturn(201);
+    when(httpResponse.body()).thenReturn("{\"id\": 1}");
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenReturn(httpResponse);
+
+    GitLabPostingService service =
+        new GitLabPostingService(
+            NAMESPACE_CONFIG, mockHttpClient, new Gson(), new DefaultIssueFormatter());
+    service.postCommentLimitNotice("3", 10);
 
     verify(mockHttpClient)
         .send(
@@ -613,6 +742,13 @@ class GitLabPostingServiceTest {
   void commentOnIssue_returnsFailure_whenRealHttpClientCannotConnect() {
     GitLabPostingService service = new GitLabPostingService(CONFIG);
     PostingResult result = service.commentOnIssue("99", buildEvent("SomeException", "boom"));
+    assertFalse(result.success());
+  }
+
+  @Test
+  void postCommentLimitNotice_returnsFailure_whenRealHttpClientCannotConnect() {
+    GitLabPostingService service = new GitLabPostingService(CONFIG);
+    PostingResult result = service.postCommentLimitNotice("99", 10);
     assertFalse(result.success());
   }
 

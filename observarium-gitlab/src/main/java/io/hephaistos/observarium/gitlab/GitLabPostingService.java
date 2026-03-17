@@ -116,7 +116,11 @@ public class GitLabPostingService implements PostingService, AutoCloseable {
       JsonObject first = issues.get(0).getAsJsonObject();
       String iid = String.valueOf(first.get("iid").getAsLong());
       String webUrl = first.get("web_url").getAsString();
-      return DuplicateSearchResult.found(iid, webUrl);
+      int commentCount =
+          first.has("user_notes_count")
+              ? first.get("user_notes_count").getAsInt()
+              : DuplicateSearchResult.COMMENT_COUNT_UNKNOWN;
+      return DuplicateSearchResult.found(iid, webUrl, commentCount);
 
     } catch (Exception e) {
       log.error("Failed to search for duplicate GitLab issue", e);
@@ -180,6 +184,24 @@ public class GitLabPostingService implements PostingService, AutoCloseable {
   @Override
   public PostingResult commentOnIssue(String externalIssueId, ExceptionEvent event) {
     requireNonNull(externalIssueId, "externalIssueId must not be null");
+    return postNote(externalIssueId, formatter.markdownComment(event));
+  }
+
+  /**
+   * Posts a comment-limit notice on an existing GitLab issue, informing that Observarium will stop
+   * commenting once the configured limit is reached.
+   */
+  @Override
+  public PostingResult postCommentLimitNotice(String externalIssueId, int commentLimit) {
+    requireNonNull(externalIssueId, "externalIssueId must not be null");
+    return postNote(externalIssueId, formatter.markdownCommentLimitNotice(commentLimit));
+  }
+
+  /**
+   * Posts a note (GitLab's term for a comment) with {@code noteBody} on the issue identified by
+   * {@code externalIssueId}.
+   */
+  private PostingResult postNote(String externalIssueId, String noteBody) {
     String url =
         config.baseUrl()
             + "/api/v4/projects/"
@@ -189,7 +211,7 @@ public class GitLabPostingService implements PostingService, AutoCloseable {
             + "/notes";
 
     JsonObject body = new JsonObject();
-    body.addProperty("body", formatter.markdownComment(event));
+    body.addProperty("body", noteBody);
 
     HttpRequest request =
         HttpRequest.newBuilder()

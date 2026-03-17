@@ -77,6 +77,23 @@ class GitHubPostingServiceWireMockTest {
   }
 
   @Test
+  void findDuplicate_returnsCommentCount_fromIssueObject(WireMockRuntimeInfo wmInfo) {
+    stubFor(
+        get(urlPathEqualTo("/repos/test-owner/test-repo/issues"))
+            .willReturn(
+                aResponse()
+                    .withStatus(200)
+                    .withHeader("Content-Type", "application/json")
+                    .withBody(
+                        "[{\"number\":42,\"html_url\":\"https://github.com/test-owner/test-repo/issues/42\",\"comments\":3}]")));
+
+    DuplicateSearchResult result = buildService(wmInfo).findDuplicate(buildEvent());
+
+    assertTrue(result.found());
+    assertEquals(3, result.commentCount());
+  }
+
+  @Test
   void findDuplicate_returnsNotFound_onEmptyArray(WireMockRuntimeInfo wmInfo) {
     stubFor(
         get(urlPathEqualTo("/repos/test-owner/test-repo/issues"))
@@ -246,6 +263,62 @@ class GitHubPostingServiceWireMockTest {
             .willReturn(aResponse().withStatus(404).withBody("{\"message\":\"Not Found\"}")));
 
     PostingResult result = buildService(wmInfo).commentOnIssue("42", buildEvent());
+
+    assertFalse(result.success());
+    assertNotNull(result.errorMessage());
+    assertTrue(result.errorMessage().contains("404"));
+  }
+
+  // ---------------------------------------------------------------------------
+  // postCommentLimitNotice tests
+  // ---------------------------------------------------------------------------
+
+  @Test
+  void postCommentLimitNotice_sendsCorrectUrlAndBody(WireMockRuntimeInfo wmInfo) {
+    stubFor(
+        post(urlPathEqualTo("/repos/test-owner/test-repo/issues/42/comments"))
+            .willReturn(
+                aResponse()
+                    .withStatus(201)
+                    .withHeader("Content-Type", "application/json")
+                    .withBody(
+                        "{\"html_url\":\"https://github.com/test-owner/test-repo/issues/42#issuecomment-2\"}")));
+
+    buildService(wmInfo).postCommentLimitNotice("42", 5);
+
+    verify(
+        postRequestedFor(urlPathEqualTo("/repos/test-owner/test-repo/issues/42/comments"))
+            .withHeader("Authorization", equalTo("Bearer " + TOKEN))
+            .withHeader("Content-Type", equalTo("application/json"))
+            .withHeader("X-GitHub-Api-Version", equalTo("2022-11-28"))
+            .withRequestBody(matchingJsonPath("$.body")));
+  }
+
+  @Test
+  void postCommentLimitNotice_returnsSuccess_on201(WireMockRuntimeInfo wmInfo) {
+    stubFor(
+        post(urlPathEqualTo("/repos/test-owner/test-repo/issues/42/comments"))
+            .willReturn(
+                aResponse()
+                    .withStatus(201)
+                    .withHeader("Content-Type", "application/json")
+                    .withBody(
+                        "{\"html_url\":\"https://github.com/test-owner/test-repo/issues/42#issuecomment-2\"}")));
+
+    PostingResult result = buildService(wmInfo).postCommentLimitNotice("42", 5);
+
+    assertTrue(result.success());
+    assertEquals("42", result.externalIssueId());
+    assertEquals("https://github.com/test-owner/test-repo/issues/42#issuecomment-2", result.url());
+  }
+
+  @Test
+  void postCommentLimitNotice_returnsFailure_on404(WireMockRuntimeInfo wmInfo) {
+    stubFor(
+        post(urlPathEqualTo("/repos/test-owner/test-repo/issues/42/comments"))
+            .willReturn(aResponse().withStatus(404).withBody("{\"message\":\"Not Found\"}")));
+
+    PostingResult result = buildService(wmInfo).postCommentLimitNotice("42", 5);
 
     assertFalse(result.success());
     assertNotNull(result.errorMessage());
