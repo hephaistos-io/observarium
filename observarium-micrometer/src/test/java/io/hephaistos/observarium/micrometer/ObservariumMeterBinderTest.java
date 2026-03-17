@@ -69,6 +69,27 @@ class ObservariumMeterBinderTest {
     assertThat(counter.count()).isEqualTo(2.0);
   }
 
+  // ---------- onCommentDropped ----------
+
+  @Test
+  void onCommentDropped_incrementsCounter() {
+    binder.onCommentDropped("github");
+
+    Counter counter =
+        registry.find("observarium.comments.dropped").tag("service", "github").counter();
+    assertThat(counter).isNotNull();
+    assertThat(counter.count()).isEqualTo(1.0);
+
+    binder.onCommentDropped("github");
+    assertThat(counter.count()).isEqualTo(2.0);
+  }
+
+  @Test
+  void onCommentDropped_beforeBindTo_doesNotThrow() {
+    ObservariumMeterBinder unboundBinder = new ObservariumMeterBinder();
+    assertThatNoException().isThrownBy(() -> unboundBinder.onCommentDropped("github"));
+  }
+
   // ---------- onPostingCompleted ----------
 
   @Test
@@ -220,6 +241,19 @@ class ObservariumMeterBinderTest {
     assertThat(registry.find("observarium.exceptions.dropped").counter()).isNull();
     assertThat(registry.find("observarium.posting.duration").timer()).isNull();
     assertThat(registry.find("observarium.queue.size").gauge()).isNull();
+  }
+
+  @Test
+  void close_removesCommentDroppedCounters() {
+    binder.onCommentDropped("github");
+
+    assertThat(registry.find("observarium.comments.dropped").tag("service", "github").counter())
+        .isNotNull();
+
+    binder.close();
+
+    assertThat(registry.find("observarium.comments.dropped").tag("service", "github").counter())
+        .isNull();
   }
 
   @Test
