@@ -25,4 +25,7 @@ public interface ObservariumQuarkusConfig {
 
   @WithDefault("span_id")
   String spanIdMdcKey();
+
+  @WithDefault("5")
+  int maxDuplicateComments();
 }

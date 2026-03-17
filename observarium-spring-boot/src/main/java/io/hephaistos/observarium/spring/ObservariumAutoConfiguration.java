@@ -87,7 +87,8 @@ public class ObservariumAutoConfiguration {
             .scrubLevel(properties.getScrubLevel())
             .fingerprinter(fingerprinter)
             .scrubber(scrubber)
-            .traceContextProvider(traceContextProvider);
+            .traceContextProvider(traceContextProvider)
+            .maxDuplicateComments(properties.getMaxDuplicateComments());
 
     if (listener != null) {
       builder.listener(listener);

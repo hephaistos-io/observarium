@@ -17,6 +17,7 @@ public class ObservariumProperties {
   private ScrubLevel scrubLevel = ScrubLevel.BASIC;
   private String traceIdMdcKey = "trace_id";
   private String spanIdMdcKey = "span_id";
+  private int maxDuplicateComments = 5;
 
   public boolean isEnabled() {
     return enabled;
@@ -48,5 +49,18 @@ public class ObservariumProperties {
 
   public void setSpanIdMdcKey(String spanIdMdcKey) {
     this.spanIdMdcKey = spanIdMdcKey;
+  }
+
+  public int getMaxDuplicateComments() {
+    return maxDuplicateComments;
+  }
+
+  public void setMaxDuplicateComments(int maxDuplicateComments) {
+    if (maxDuplicateComments < -1 || maxDuplicateComments == 0) {
+      throw new IllegalArgumentException(
+          "observarium.max-duplicate-comments must be -1 (unlimited) or a positive integer, got: "
+              + maxDuplicateComments);
+    }
+    this.maxDuplicateComments = maxDuplicateComments;
   }
 }

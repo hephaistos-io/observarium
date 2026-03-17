@@ -58,6 +58,7 @@ class ObservariumProducerTest {
     when(config.scrubLevel()).thenReturn("BASIC");
     when(config.traceIdMdcKey()).thenReturn("trace_id");
     when(config.spanIdMdcKey()).thenReturn("span_id");
+    when(config.maxDuplicateComments()).thenReturn(5);
     when(emptyInstance.iterator()).thenReturn(List.<PostingService>of().iterator());
     when(emptyListenerInstance.isResolvable()).thenReturn(false);
 
@@ -130,6 +131,26 @@ class ObservariumProducerTest {
 
     assertThat(result).isNotNull();
     assertThat(result.config().postingServiceCount()).isZero();
+  }
+
+  @Test
+  void observarium_fallsBackToDefault_whenMaxDuplicateCommentsIsZero() {
+    when(config.maxDuplicateComments()).thenReturn(0);
+
+    Observarium result = producer.observarium(emptyInstance, emptyListenerInstance);
+
+    assertThat(result).isNotNull();
+    assertThat(result.config().maxDuplicateComments()).isEqualTo(5);
+  }
+
+  @Test
+  void observarium_fallsBackToDefault_whenMaxDuplicateCommentsIsBelowMinusOne() {
+    when(config.maxDuplicateComments()).thenReturn(-5);
+
+    Observarium result = producer.observarium(emptyInstance, emptyListenerInstance);
+
+    assertThat(result).isNotNull();
+    assertThat(result.config().maxDuplicateComments()).isEqualTo(5);
   }
 
   @Test
