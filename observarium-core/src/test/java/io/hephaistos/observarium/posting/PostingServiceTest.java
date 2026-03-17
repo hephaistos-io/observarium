@@ -61,4 +61,57 @@ class PostingServiceTest {
   void fingerprintLabel_throwsOnNullFingerprint() {
     assertThrows(NullPointerException.class, () -> service.fingerprintLabel(null));
   }
+
+  @Test
+  void postCommentLimitNotice_defaultReturnsFailure() {
+    PostingResult result = service.postCommentLimitNotice("ISSUE-1", 5);
+    assertFalse(result.success(), "Default postCommentLimitNotice must return a failure result");
+    assertTrue(
+        result.errorMessage().contains("test"), "Failure message must reference the service name");
+  }
+
+  // -----------------------------------------------------------------------
+  // DuplicateSearchResult factory methods
+  // -----------------------------------------------------------------------
+
+  @Test
+  void notFound_returnsCommentCountUnknown() {
+    DuplicateSearchResult result = DuplicateSearchResult.notFound();
+    assertFalse(result.found());
+    assertEquals(DuplicateSearchResult.COMMENT_COUNT_UNKNOWN, result.commentCount());
+  }
+
+  @Test
+  void found_twoArg_returnsCommentCountUnknown() {
+    DuplicateSearchResult result = DuplicateSearchResult.found("ID-1", "https://t/1");
+    assertTrue(result.found());
+    assertEquals(DuplicateSearchResult.COMMENT_COUNT_UNKNOWN, result.commentCount());
+  }
+
+  @Test
+  void found_threeArg_storesCommentCount() {
+    DuplicateSearchResult result = DuplicateSearchResult.found("ID-1", "https://t/1", 7);
+    assertEquals(7, result.commentCount());
+  }
+
+  @Test
+  void found_threeArg_acceptsZero() {
+    DuplicateSearchResult result = DuplicateSearchResult.found("ID-1", "https://t/1", 0);
+    assertEquals(0, result.commentCount());
+  }
+
+  @Test
+  void found_threeArg_acceptsMinusOne() {
+    DuplicateSearchResult result =
+        DuplicateSearchResult.found(
+            "ID-1", "https://t/1", DuplicateSearchResult.COMMENT_COUNT_UNKNOWN);
+    assertEquals(DuplicateSearchResult.COMMENT_COUNT_UNKNOWN, result.commentCount());
+  }
+
+  @Test
+  void found_threeArg_rejectsNegativeBelowMinusOne() {
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> DuplicateSearchResult.found("ID-1", "https://t/1", -2));
+  }
 }

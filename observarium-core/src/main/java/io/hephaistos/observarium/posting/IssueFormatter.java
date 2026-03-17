@@ -60,4 +60,23 @@ public interface IssueFormatter {
    * @return a non-null string ready to be submitted as a tracker comment
    */
   String markdownComment(ExceptionEvent event);
+
+  /**
+   * Generates a final notice comment indicating that the configured comment limit has been reached
+   * and Observarium will no longer add comments to this issue.
+   *
+   * @param commentLimit the maximum number of duplicate comments that were allowed
+   * @return a non-null string ready to be submitted as a tracker comment
+   */
+  default String markdownCommentLimitNotice(int commentLimit) {
+    return """
+        ## Comment Limit Reached
+
+        This exception has recurred more than **%d** times. \
+        Observarium will no longer add comments to this issue.
+
+        The exception is still being tracked — check your application metrics \
+        (`observarium.comments.dropped`) for ongoing occurrence counts."""
+        .formatted(commentLimit);
+  }
 }

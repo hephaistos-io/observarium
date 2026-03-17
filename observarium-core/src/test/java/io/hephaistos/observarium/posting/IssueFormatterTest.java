@@ -237,4 +237,30 @@ class IssueFormatterTest {
         formatter.markdownComment(event).startsWith("## Occurred Again"),
         "Comment must start with the 'Occurred Again' header");
   }
+
+  // -----------------------------------------------------------------------
+  // markdownCommentLimitNotice()
+  // -----------------------------------------------------------------------
+
+  @Test
+  void markdownCommentLimitNotice_containsLimitNumber() {
+    String notice = formatter.markdownCommentLimitNotice(5);
+    assertTrue(notice.contains("5"), "Limit notice must contain the configured limit number");
+  }
+
+  @Test
+  void markdownCommentLimitNotice_containsMetricHint() {
+    String notice = formatter.markdownCommentLimitNotice(5);
+    assertTrue(
+        notice.contains("observarium.comments.dropped"),
+        "Limit notice must reference the observarium.comments.dropped metric");
+  }
+
+  @Test
+  void markdownCommentLimitNotice_containsCommentLimitHeader() {
+    String notice = formatter.markdownCommentLimitNotice(5);
+    assertTrue(
+        notice.contains("Comment Limit Reached"),
+        "Limit notice must contain the 'Comment Limit Reached' header");
+  }
 }
