@@ -1,9 +1,11 @@
 package io.hephaistos.observarium.handler;
 
+import io.hephaistos.observarium.ObservariumConfig;
 import io.hephaistos.observarium.ObservariumListener;
 import io.hephaistos.observarium.event.ExceptionEvent;
 import io.hephaistos.observarium.event.Severity;
 import io.hephaistos.observarium.fingerprint.ExceptionFingerprinter;
+import io.hephaistos.observarium.posting.DuplicateSearchResult;
 import io.hephaistos.observarium.posting.PostingResult;
 import io.hephaistos.observarium.posting.PostingService;
 import io.hephaistos.observarium.scrub.DataScrubber;
@@ -37,16 +39,33 @@ public class ExceptionProcessor {
   private final DataScrubber scrubber;
   private final List<PostingService> postingServices;
   private final ObservariumListener listener;
+  private final int maxDuplicateComments;
 
   public ExceptionProcessor(
       ExceptionFingerprinter fingerprinter,
       DataScrubber scrubber,
       List<PostingService> postingServices,
-      ObservariumListener listener) {
+      ObservariumListener listener,
+      int maxDuplicateComments) {
     this.fingerprinter = fingerprinter;
     this.scrubber = scrubber;
     this.postingServices = List.copyOf(postingServices);
     this.listener = listener;
+    this.maxDuplicateComments = maxDuplicateComments;
+  }
+
+  /** Backward-compatible constructor that uses the default comment limit. */
+  public ExceptionProcessor(
+      ExceptionFingerprinter fingerprinter,
+      DataScrubber scrubber,
+      List<PostingService> postingServices,
+      ObservariumListener listener) {
+    this(
+        fingerprinter,
+        scrubber,
+        postingServices,
+        listener,
+        ObservariumConfig.DEFAULT_MAX_DUPLICATE_COMMENTS);
   }
 
   /**
@@ -91,11 +110,7 @@ public class ExceptionProcessor {
         duplicate = duplicateResult.found();
         PostingResult result;
         if (duplicate) {
-          log.info(
-              "Duplicate found on {} (issue {}), adding comment",
-              service.name(),
-              duplicateResult.externalIssueId());
-          result = service.commentOnIssue(duplicateResult.externalIssueId(), event);
+          result = handleDuplicate(service, duplicateResult, event);
         } else {
           log.info("No duplicate on {}, creating new issue", service.name());
           result = service.createIssue(event);
@@ -112,6 +127,47 @@ public class ExceptionProcessor {
       }
     }
     return results;
+  }
+
+  private PostingResult handleDuplicate(
+      PostingService service, DuplicateSearchResult duplicateResult, ExceptionEvent event) {
+    int commentCount = duplicateResult.commentCount();
+    boolean limitEnabled = maxDuplicateComments != ObservariumConfig.UNLIMITED_COMMENTS;
+    boolean countKnown = commentCount != DuplicateSearchResult.COMMENT_COUNT_UNKNOWN;
+
+    if (limitEnabled && countKnown && commentCount > maxDuplicateComments) {
+      log.info(
+          "Comment limit reached on {} (issue {}, comments={}), dropping",
+          service.name(),
+          duplicateResult.externalIssueId(),
+          commentCount);
+      notifyCommentDropped(service.name());
+      return PostingResult.success(duplicateResult.externalIssueId(), duplicateResult.url());
+    }
+
+    if (limitEnabled && countKnown && commentCount == maxDuplicateComments) {
+      log.info(
+          "Posting comment limit notice on {} (issue {}, comments={})",
+          service.name(),
+          duplicateResult.externalIssueId(),
+          commentCount);
+      return service.postCommentLimitNotice(
+          duplicateResult.externalIssueId(), maxDuplicateComments);
+    }
+
+    log.info(
+        "Duplicate found on {} (issue {}), adding comment",
+        service.name(),
+        duplicateResult.externalIssueId());
+    return service.commentOnIssue(duplicateResult.externalIssueId(), event);
+  }
+
+  private void notifyCommentDropped(String serviceName) {
+    try {
+      listener.onCommentDropped(serviceName);
+    } catch (Exception ex) {
+      log.debug("Listener callback onCommentDropped failed", ex);
+    }
   }
 
   private void notifyPostingCompleted(

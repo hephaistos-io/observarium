@@ -268,6 +268,7 @@ public final class Observarium {
     private TraceContextProvider traceProvider;
     private final List<PostingService> postingServices = new ArrayList<>();
     private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
+    private int maxDuplicateComments = ObservariumConfig.DEFAULT_MAX_DUPLICATE_COMMENTS;
     private ObservariumListener listener;
 
     /**
@@ -399,6 +400,30 @@ public final class Observarium {
     }
 
     /**
+     * Sets the maximum number of duplicate comments Observarium will post on a single issue before
+     * stopping. After the limit is reached, one final notice comment is posted and subsequent
+     * occurrences are silently dropped (tracked via the {@code observarium.comments.dropped}
+     * metric).
+     *
+     * <p>Defaults to {@value ObservariumConfig#DEFAULT_MAX_DUPLICATE_COMMENTS}. Use {@link
+     * ObservariumConfig#UNLIMITED_COMMENTS} ({@code -1}) for no limit (preserves pre-feature
+     * behavior).
+     *
+     * @param maxDuplicateComments the maximum comment count; must be {@code -1} (unlimited) or a
+     *     positive integer
+     * @return this builder
+     */
+    public Builder maxDuplicateComments(int maxDuplicateComments) {
+      if (maxDuplicateComments < -1 || maxDuplicateComments == 0) {
+        throw new IllegalArgumentException(
+            "maxDuplicateComments must be -1 (unlimited) or a positive integer, got: "
+                + maxDuplicateComments);
+      }
+      this.maxDuplicateComments = maxDuplicateComments;
+      return this;
+    }
+
+    /**
      * Sets the maximum number of exception reports that can be buffered in the internal queue
      * awaiting the background worker thread.
      *
@@ -444,8 +469,10 @@ public final class Observarium {
         log.warn("No PostingService configured — captured exceptions will be silently ignored");
       }
 
-      var config = new ObservariumConfig(scrubLevel, postingServices.size());
-      var processor = new ExceptionProcessor(fingerprinter, scrubber, postingServices, listener);
+      var config = new ObservariumConfig(scrubLevel, postingServices.size(), maxDuplicateComments);
+      var processor =
+          new ExceptionProcessor(
+              fingerprinter, scrubber, postingServices, listener, maxDuplicateComments);
 
       var queue = new ArrayBlockingQueue<Runnable>(queueCapacity);
       var executor =

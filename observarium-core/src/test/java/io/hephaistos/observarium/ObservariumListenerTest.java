@@ -143,6 +143,38 @@ class ObservariumListenerTest {
     assertThat(results.get(0).success()).isTrue();
   }
 
+  @Test
+  void listener_receivesOnCommentDropped_whenLimitExceeded() throws Exception {
+    RecordingListener listener = new RecordingListener();
+    var completedLatch = new CountDownLatch(1);
+    observarium =
+        Observarium.builder()
+            .maxDuplicateComments(5)
+            .listener(
+                new ObservariumListener() {
+                  @Override
+                  public void onCommentDropped(String serviceName) {
+                    listener.onCommentDropped(serviceName);
+                  }
+
+                  @Override
+                  public void onPostingCompleted(
+                      String serviceName, boolean duplicate, boolean success, long durationNanos) {
+                    listener.onPostingCompleted(serviceName, duplicate, success, durationNanos);
+                    completedLatch.countDown();
+                  }
+                })
+            .addPostingService(commentLimitExceededService("tracker"))
+            .build();
+
+    observarium.captureException(new RuntimeException("test")).get(5, TimeUnit.SECONDS);
+    assertThat(completedLatch.await(5, TimeUnit.SECONDS))
+        .as("onPostingCompleted should be called")
+        .isTrue();
+
+    assertThat(listener.commentDroppedServiceNames).containsExactly("tracker");
+  }
+
   // ---------------------------------------------------------------------------
   // Recording listener
   // ---------------------------------------------------------------------------
@@ -152,6 +184,7 @@ class ObservariumListenerTest {
     final List<Severity> capturedSeverities = new CopyOnWriteArrayList<>();
     final AtomicInteger droppedCount = new AtomicInteger();
     final List<PostingCompletion> postingCompletions = new CopyOnWriteArrayList<>();
+    final List<String> commentDroppedServiceNames = new CopyOnWriteArrayList<>();
     volatile Supplier<Integer> queueSizeSupplier;
 
     @Override
@@ -168,6 +201,11 @@ class ObservariumListenerTest {
     public void onPostingCompleted(
         String serviceName, boolean duplicate, boolean success, long durationNanos) {
       postingCompletions.add(new PostingCompletion(serviceName, duplicate, success, durationNanos));
+    }
+
+    @Override
+    public void onCommentDropped(String serviceName) {
+      commentDroppedServiceNames.add(serviceName);
     }
 
     @Override
@@ -223,6 +261,31 @@ class ObservariumListenerTest {
           Thread.currentThread().interrupt();
         }
         return DuplicateSearchResult.notFound();
+      }
+
+      @Override
+      public PostingResult createIssue(ExceptionEvent event) {
+        return PostingResult.success("ISSUE-1", "https://tracker/ISSUE-1");
+      }
+
+      @Override
+      public PostingResult commentOnIssue(String externalIssueId, ExceptionEvent event) {
+        return PostingResult.success(externalIssueId, "https://tracker/" + externalIssueId);
+      }
+    };
+  }
+
+  private static PostingService commentLimitExceededService(String name) {
+    return new PostingService() {
+      @Override
+      public String name() {
+        return name;
+      }
+
+      @Override
+      public DuplicateSearchResult findDuplicate(ExceptionEvent event) {
+        // Return a duplicate with a comment count that exceeds the configured limit of 5
+        return DuplicateSearchResult.found("ISSUE-1", "https://tracker/ISSUE-1", 10);
       }
 
       @Override

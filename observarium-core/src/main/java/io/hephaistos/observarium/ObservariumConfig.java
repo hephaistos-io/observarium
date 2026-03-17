@@ -19,5 +19,20 @@ import io.hephaistos.observarium.scrub.ScrubLevel;
  * @param postingServiceCount the number of {@link io.hephaistos.observarium.posting.PostingService}
  *     instances registered at build time; zero indicates that captured exceptions will not be
  *     forwarded anywhere
+ * @param maxDuplicateComments the maximum number of duplicate comments Observarium will post on a
+ *     single issue before stopping; {@link #UNLIMITED_COMMENTS} means no limit is applied
  */
-public record ObservariumConfig(ScrubLevel scrubLevel, int postingServiceCount) {}
+public record ObservariumConfig(
+    ScrubLevel scrubLevel, int postingServiceCount, int maxDuplicateComments) {
+
+  /** Default value: 5 comments allowed per issue before the limit notice is posted. */
+  public static final int DEFAULT_MAX_DUPLICATE_COMMENTS = 5;
+
+  /** Sentinel value meaning unlimited comments (no cap). */
+  public static final int UNLIMITED_COMMENTS = -1;
+
+  /** Backward-compatible constructor that uses the default comment limit. */
+  public ObservariumConfig(ScrubLevel scrubLevel, int postingServiceCount) {
+    this(scrubLevel, postingServiceCount, DEFAULT_MAX_DUPLICATE_COMMENTS);
+  }
+}

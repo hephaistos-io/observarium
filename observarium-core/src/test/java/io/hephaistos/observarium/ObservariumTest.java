@@ -355,6 +355,49 @@ class ObservariumTest {
   }
 
   // -----------------------------------------------------------------------
+  // maxDuplicateComments builder option
+  // -----------------------------------------------------------------------
+
+  @Test
+  void builder_maxDuplicateComments_storesInConfig() {
+    Observarium obs = Observarium.builder().maxDuplicateComments(10).build();
+    try {
+      assertEquals(10, obs.config().maxDuplicateComments());
+    } finally {
+      obs.shutdown();
+    }
+  }
+
+  @Test
+  void builder_defaultMaxDuplicateComments_isFive() {
+    Observarium obs = Observarium.builder().build();
+    try {
+      assertEquals(5, obs.config().maxDuplicateComments());
+    } finally {
+      obs.shutdown();
+    }
+  }
+
+  @Test
+  void builder_maxDuplicateComments_rejectsZero() {
+    Observarium.Builder builder = Observarium.builder();
+    assertThrows(IllegalArgumentException.class, () -> builder.maxDuplicateComments(0));
+  }
+
+  @Test
+  void builder_maxDuplicateComments_rejectsNegativeTwo() {
+    Observarium.Builder builder = Observarium.builder();
+    assertThrows(IllegalArgumentException.class, () -> builder.maxDuplicateComments(-2));
+  }
+
+  @Test
+  void builder_maxDuplicateComments_acceptsMinusOne() {
+    // -1 is the sentinel value meaning unlimited comments.
+    Observarium.Builder builder = Observarium.builder();
+    assertDoesNotThrow(() -> builder.maxDuplicateComments(-1));
+  }
+
+  // -----------------------------------------------------------------------
   // addScrubPattern builder option
   // -----------------------------------------------------------------------
 
