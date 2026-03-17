@@ -190,6 +190,63 @@ class GitHubPostingServiceTest {
 
   @Test
   @SuppressWarnings("unchecked")
+  void findDuplicate_returnsKnownCommentCount_whenIssueHasCommentsField() throws Exception {
+    String listResponse =
+        """
+                [
+                  {
+                    "number": 42,
+                    "html_url": "https://github.com/owner/repo/issues/42",
+                    "comments": 7
+                  }
+                ]
+                """;
+
+    HttpResponse<String> httpResponse = mock(HttpResponse.class);
+    when(httpResponse.statusCode()).thenReturn(200);
+    when(httpResponse.body()).thenReturn(listResponse);
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenReturn(httpResponse);
+
+    GitHubPostingService service =
+        new GitHubPostingService(
+            GitHubConfig.of("tok", "owner", "repo"), mockHttpClient, new DefaultIssueFormatter());
+
+    DuplicateSearchResult result = service.findDuplicate(buildEvent("MyException", "oops"));
+
+    assertTrue(result.found());
+    assertEquals(7, result.commentCount());
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void findDuplicate_returnsUnknownCommentCount_whenIssueHasNoCommentsField() throws Exception {
+    // GitHub response without the "comments" field
+    String listResponse =
+        """
+                [
+                  { "number": 42, "html_url": "https://github.com/owner/repo/issues/42" }
+                ]
+                """;
+
+    HttpResponse<String> httpResponse = mock(HttpResponse.class);
+    when(httpResponse.statusCode()).thenReturn(200);
+    when(httpResponse.body()).thenReturn(listResponse);
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenReturn(httpResponse);
+
+    GitHubPostingService service =
+        new GitHubPostingService(
+            GitHubConfig.of("tok", "owner", "repo"), mockHttpClient, new DefaultIssueFormatter());
+
+    DuplicateSearchResult result = service.findDuplicate(buildEvent("MyException", "oops"));
+
+    assertTrue(result.found());
+    assertEquals(DuplicateSearchResult.COMMENT_COUNT_UNKNOWN, result.commentCount());
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
   void findDuplicate_returnsNotFound_whenNoIssuesWithLabel() throws Exception {
     String listResponse = "[]";
 
@@ -395,6 +452,77 @@ class GitHubPostingServiceTest {
             GitHubConfig.of("tok", "owner", "repo"), mockHttpClient, new DefaultIssueFormatter());
     ExceptionEvent event = buildEvent("MyException", "oops");
     assertThrows(NullPointerException.class, () -> service.commentOnIssue(null, event));
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void postCommentLimitNotice_returnsSuccess_withCommentUrl() throws Exception {
+    String commentResponse =
+        """
+                {
+                  "id": 888,
+                  "html_url": "https://github.com/owner/repo/issues/7#issuecomment-888"
+                }
+                """;
+
+    HttpResponse<String> httpResponse = mock(HttpResponse.class);
+    when(httpResponse.statusCode()).thenReturn(201);
+    when(httpResponse.body()).thenReturn(commentResponse);
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenReturn(httpResponse);
+
+    GitHubPostingService service =
+        new GitHubPostingService(
+            GitHubConfig.of("tok", "owner", "repo"), mockHttpClient, new DefaultIssueFormatter());
+
+    PostingResult result = service.postCommentLimitNotice("7", 10);
+
+    assertTrue(result.success());
+    assertEquals("7", result.externalIssueId());
+    assertEquals("https://github.com/owner/repo/issues/7#issuecomment-888", result.url());
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void postCommentLimitNotice_returnsFailure_whenGitHubReturns404() throws Exception {
+    HttpResponse<String> httpResponse = mock(HttpResponse.class);
+    when(httpResponse.statusCode()).thenReturn(404);
+    when(httpResponse.body()).thenReturn("{\"message\":\"Not Found\"}");
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenReturn(httpResponse);
+
+    GitHubPostingService service =
+        new GitHubPostingService(
+            GitHubConfig.of("tok", "owner", "repo"), mockHttpClient, new DefaultIssueFormatter());
+
+    PostingResult result = service.postCommentLimitNotice("9999", 10);
+
+    assertFalse(result.success());
+    assertTrue(result.errorMessage().contains("404"));
+  }
+
+  @Test
+  @SuppressWarnings("unchecked")
+  void postCommentLimitNotice_returnsFailure_onNetworkError() throws Exception {
+    when(mockHttpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+        .thenThrow(new IOException("connection reset"));
+
+    GitHubPostingService service =
+        new GitHubPostingService(
+            GitHubConfig.of("tok", "owner", "repo"), mockHttpClient, new DefaultIssueFormatter());
+
+    PostingResult result = service.postCommentLimitNotice("7", 10);
+
+    assertFalse(result.success());
+    assertTrue(result.errorMessage().contains("connection reset"));
+  }
+
+  @Test
+  void postCommentLimitNotice_throwsNullPointerException_whenExternalIssueIdIsNull() {
+    GitHubPostingService service =
+        new GitHubPostingService(
+            GitHubConfig.of("tok", "owner", "repo"), mockHttpClient, new DefaultIssueFormatter());
+    assertThrows(NullPointerException.class, () -> service.postCommentLimitNotice(null, 10));
   }
 
   @Test

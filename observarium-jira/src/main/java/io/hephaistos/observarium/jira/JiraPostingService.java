@@ -97,6 +97,7 @@ public class JiraPostingService implements PostingService, AutoCloseable {
     JsonArray fields = new JsonArray();
     fields.add("summary");
     fields.add("status");
+    fields.add("comment");
     body.add("fields", fields);
 
     String url = config.baseUrl() + "/rest/api/3/search/jql";
@@ -120,9 +121,10 @@ public class JiraPostingService implements PostingService, AutoCloseable {
       JsonObject issue = issues.get(0).getAsJsonObject();
       String key = issue.get("key").getAsString();
       String issueUrl = browseUrl(key);
+      int commentCount = extractCommentCount(issue);
 
       log.debug("Jira duplicate found: {} ({})", key, issueUrl);
-      return DuplicateSearchResult.found(key, issueUrl);
+      return DuplicateSearchResult.found(key, issueUrl, commentCount);
 
     } catch (Exception e) {
       log.error("Error searching for Jira duplicate for fingerprint {}", event.fingerprint(), e);
@@ -182,7 +184,32 @@ public class JiraPostingService implements PostingService, AutoCloseable {
   @Override
   public PostingResult commentOnIssue(String externalIssueId, ExceptionEvent event) {
     requireNonNull(externalIssueId, "externalIssueId must not be null");
-    String commentText = formatter.markdownComment(event);
+    return postComment(externalIssueId, formatter.markdownComment(event));
+  }
+
+  /**
+   * Posts a final notice comment on an existing Jira issue indicating that the configured comment
+   * limit has been reached and Observarium will stop commenting.
+   *
+   * @param externalIssueId the Jira issue key, e.g. {@code OBS-42}
+   * @param commentLimit the configured maximum number of duplicate comments
+   */
+  @Override
+  public PostingResult postCommentLimitNotice(String externalIssueId, int commentLimit) {
+    requireNonNull(externalIssueId, "externalIssueId must not be null");
+    return postComment(externalIssueId, formatter.markdownCommentLimitNotice(commentLimit));
+  }
+
+  /**
+   * Posts a comment with the given text body to an existing Jira issue.
+   *
+   * <p>The text is wrapped in an ADF paragraph node before submission. This method never throws;
+   * all failures are caught and returned as {@link PostingResult#failure(String)}.
+   *
+   * @param externalIssueId the Jira issue key, e.g. {@code OBS-42}
+   * @param commentText the plain-text or markdown comment body
+   */
+  private PostingResult postComment(String externalIssueId, String commentText) {
     JsonObject body = buildCommentBody(commentText);
     String url = config.baseUrl() + "/rest/api/3/issue/" + externalIssueId + "/comment";
 
@@ -208,6 +235,36 @@ public class JiraPostingService implements PostingService, AutoCloseable {
         Thread.currentThread().interrupt();
       }
       return PostingResult.failure("Exception commenting on Jira issue: " + e.getMessage());
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Response parsers
+  // -------------------------------------------------------------------------
+
+  /**
+   * Extracts the comment count from a Jira issue JSON object returned by the search API.
+   *
+   * <p>The value is read from {@code issue.fields.comment.total}. Any missing or unexpected
+   * structure returns {@link DuplicateSearchResult#COMMENT_COUNT_UNKNOWN} rather than throwing.
+   */
+  private int extractCommentCount(JsonObject issue) {
+    try {
+      JsonObject fields = issue.getAsJsonObject("fields");
+      if (fields == null) {
+        return DuplicateSearchResult.COMMENT_COUNT_UNKNOWN;
+      }
+      JsonObject comment = fields.getAsJsonObject("comment");
+      if (comment == null) {
+        return DuplicateSearchResult.COMMENT_COUNT_UNKNOWN;
+      }
+      if (!comment.has("total") || comment.get("total").isJsonNull()) {
+        return DuplicateSearchResult.COMMENT_COUNT_UNKNOWN;
+      }
+      return comment.get("total").getAsInt();
+    } catch (Exception e) {
+      log.debug("Could not extract comment count from Jira issue response", e);
+      return DuplicateSearchResult.COMMENT_COUNT_UNKNOWN;
     }
   }
 

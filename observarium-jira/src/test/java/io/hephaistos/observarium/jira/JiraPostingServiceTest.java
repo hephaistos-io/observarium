@@ -422,6 +422,277 @@ class JiraPostingServiceTest {
   }
 
   // -------------------------------------------------------------------------
+  // findDuplicate() — comment count extraction
+  // -------------------------------------------------------------------------
+
+  @Nested
+  @DisplayName("findDuplicate() — comment count")
+  class FindDuplicateCommentCountTests {
+
+    @Test
+    @DisplayName("returns comment count from fields.comment.total when present")
+    void returnsCommentCountWhenPresent() throws Exception {
+      ExceptionEvent event = buildEvent("abc123def456xyz789");
+
+      String jiraResponse =
+          """
+                {
+                  "issues": [
+                    {
+                      "key": "OBS-42",
+                      "fields": {
+                        "summary": "some summary",
+                        "status": {"name": "Open"},
+                        "comment": {
+                          "total": 7,
+                          "comments": []
+                        }
+                      }
+                    }
+                  ],
+                  "total": 1
+                }
+                """;
+
+      JiraPostingService service =
+          new JiraPostingService(
+              config,
+              mockClient(mockResponse(200, jiraResponse)),
+              new Gson(),
+              new DefaultIssueFormatter());
+      DuplicateSearchResult result = service.findDuplicate(event);
+
+      assertTrue(result.found());
+      assertEquals("OBS-42", result.externalIssueId());
+      assertEquals(7, result.commentCount());
+    }
+
+    @Test
+    @DisplayName("returns COMMENT_COUNT_UNKNOWN when fields object is missing")
+    void returnsUnknownWhenFieldsMissing() throws Exception {
+      ExceptionEvent event = buildEvent("abc123def456xyz789");
+
+      // Issue with no "fields" object at all
+      String jiraResponse =
+          """
+                {
+                  "issues": [
+                    {
+                      "key": "OBS-42"
+                    }
+                  ],
+                  "total": 1
+                }
+                """;
+
+      JiraPostingService service =
+          new JiraPostingService(
+              config,
+              mockClient(mockResponse(200, jiraResponse)),
+              new Gson(),
+              new DefaultIssueFormatter());
+      DuplicateSearchResult result = service.findDuplicate(event);
+
+      assertTrue(result.found());
+      assertEquals(DuplicateSearchResult.COMMENT_COUNT_UNKNOWN, result.commentCount());
+    }
+
+    @Test
+    @DisplayName("returns COMMENT_COUNT_UNKNOWN when fields.comment object is missing")
+    void returnsUnknownWhenCommentObjectMissing() throws Exception {
+      ExceptionEvent event = buildEvent("abc123def456xyz789");
+
+      // Issue with "fields" but no "comment" child
+      String jiraResponse =
+          """
+                {
+                  "issues": [
+                    {
+                      "key": "OBS-42",
+                      "fields": {
+                        "summary": "some summary",
+                        "status": {"name": "Open"}
+                      }
+                    }
+                  ],
+                  "total": 1
+                }
+                """;
+
+      JiraPostingService service =
+          new JiraPostingService(
+              config,
+              mockClient(mockResponse(200, jiraResponse)),
+              new Gson(),
+              new DefaultIssueFormatter());
+      DuplicateSearchResult result = service.findDuplicate(event);
+
+      assertTrue(result.found());
+      assertEquals(DuplicateSearchResult.COMMENT_COUNT_UNKNOWN, result.commentCount());
+    }
+
+    @Test
+    @DisplayName("returns COMMENT_COUNT_UNKNOWN when fields.comment.total is absent")
+    void returnsUnknownWhenTotalFieldAbsent() throws Exception {
+      ExceptionEvent event = buildEvent("abc123def456xyz789");
+
+      // "comment" object present but "total" key is absent
+      String jiraResponse =
+          """
+                {
+                  "issues": [
+                    {
+                      "key": "OBS-42",
+                      "fields": {
+                        "comment": {
+                          "comments": []
+                        }
+                      }
+                    }
+                  ],
+                  "total": 1
+                }
+                """;
+
+      JiraPostingService service =
+          new JiraPostingService(
+              config,
+              mockClient(mockResponse(200, jiraResponse)),
+              new Gson(),
+              new DefaultIssueFormatter());
+      DuplicateSearchResult result = service.findDuplicate(event);
+
+      assertTrue(result.found());
+      assertEquals(DuplicateSearchResult.COMMENT_COUNT_UNKNOWN, result.commentCount());
+    }
+
+    @Test
+    @DisplayName("returns COMMENT_COUNT_UNKNOWN when fields.comment.total is JSON null")
+    void returnsUnknownWhenTotalIsNull() throws Exception {
+      ExceptionEvent event = buildEvent("abc123def456xyz789");
+
+      String jiraResponse =
+          """
+                {
+                  "issues": [
+                    {
+                      "key": "OBS-42",
+                      "fields": {
+                        "comment": {
+                          "total": null,
+                          "comments": []
+                        }
+                      }
+                    }
+                  ],
+                  "total": 1
+                }
+                """;
+
+      JiraPostingService service =
+          new JiraPostingService(
+              config,
+              mockClient(mockResponse(200, jiraResponse)),
+              new Gson(),
+              new DefaultIssueFormatter());
+      DuplicateSearchResult result = service.findDuplicate(event);
+
+      assertTrue(result.found());
+      assertEquals(DuplicateSearchResult.COMMENT_COUNT_UNKNOWN, result.commentCount());
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // postCommentLimitNotice()
+  // -------------------------------------------------------------------------
+
+  @Nested
+  @DisplayName("postCommentLimitNotice()")
+  class PostCommentLimitNoticeTests {
+
+    @Test
+    @DisplayName("throws NullPointerException when externalIssueId is null")
+    void throwsOnNullExternalIssueId() throws Exception {
+      JiraPostingService service =
+          new JiraPostingService(
+              config, mockClient(mockResponse(201, "{}")), new Gson(), new DefaultIssueFormatter());
+      assertThrows(NullPointerException.class, () -> service.postCommentLimitNotice(null, 10));
+    }
+
+    @Test
+    @DisplayName("returns success when Jira accepts the comment (HTTP 201)")
+    void returnsSuccessOn201() throws Exception {
+      String jiraResponse =
+          """
+                {
+                  "id": "30001",
+                  "self": "https://mycompany.atlassian.net/rest/api/3/issue/OBS-10/comment/30001"
+                }
+                """;
+
+      JiraPostingService service =
+          new JiraPostingService(
+              config,
+              mockClient(mockResponse(201, jiraResponse)),
+              new Gson(),
+              new DefaultIssueFormatter());
+      PostingResult result = service.postCommentLimitNotice("OBS-10", 5);
+
+      assertTrue(result.success());
+      assertEquals("OBS-10", result.externalIssueId());
+      assertEquals(BASE_URL + "/browse/OBS-10", result.url());
+      assertNull(result.errorMessage());
+    }
+
+    @Test
+    @DisplayName("returns failure when Jira returns HTTP 404")
+    void returnsFailureOn404() throws Exception {
+      JiraPostingService service =
+          new JiraPostingService(
+              config,
+              mockClient(mockResponse(404, "{\"errorMessages\":[\"Issue Does Not Exist\"]}")),
+              new Gson(),
+              new DefaultIssueFormatter());
+      PostingResult result = service.postCommentLimitNotice("OBS-999", 5);
+
+      assertFalse(result.success());
+      assertNotNull(result.errorMessage());
+      assertTrue(result.errorMessage().contains("404"));
+    }
+
+    @Test
+    @DisplayName("returns failure gracefully when network throws")
+    void returnsFailureOnNetworkException() throws Exception {
+      JiraPostingService service =
+          new JiraPostingService(
+              config,
+              mockClientThrowing(new RuntimeException("DNS failure")),
+              new Gson(),
+              new DefaultIssueFormatter());
+      PostingResult result = service.postCommentLimitNotice("OBS-5", 5);
+
+      assertFalse(result.success());
+      assertNotNull(result.errorMessage());
+    }
+
+    @Test
+    @DisplayName("returns failure gracefully when thread is interrupted")
+    void returnsFailureOnInterruptedException() throws Exception {
+      JiraPostingService service =
+          new JiraPostingService(
+              config,
+              mockClientThrowing(new InterruptedException("interrupted")),
+              new Gson(),
+              new DefaultIssueFormatter());
+      PostingResult result = service.postCommentLimitNotice("OBS-5", 5);
+
+      assertFalse(result.success());
+      assertNotNull(result.errorMessage());
+      assertTrue(Thread.interrupted(), "Service must restore the interrupt flag");
+    }
+  }
+
+  // -------------------------------------------------------------------------
   // commentOnIssue()
   // -------------------------------------------------------------------------
 

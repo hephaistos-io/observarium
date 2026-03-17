@@ -109,9 +109,13 @@ public class GitHubPostingService implements PostingService, AutoCloseable {
       JsonObject issue = issues.get(0).getAsJsonObject();
       String issueNumber = String.valueOf(issue.get("number").getAsInt());
       String htmlUrl = issue.get("html_url").getAsString();
+      int commentCount =
+          issue.has("comments")
+              ? issue.get("comments").getAsInt()
+              : DuplicateSearchResult.COMMENT_COUNT_UNKNOWN;
 
       log.debug("Found duplicate issue. number={} url={}", issueNumber, htmlUrl);
-      return DuplicateSearchResult.found(issueNumber, htmlUrl);
+      return DuplicateSearchResult.found(issueNumber, htmlUrl, commentCount);
 
     } catch (IOException | InterruptedException e) {
       log.error(
@@ -184,6 +188,39 @@ public class GitHubPostingService implements PostingService, AutoCloseable {
   @Override
   public PostingResult commentOnIssue(String externalIssueId, ExceptionEvent event) {
     requireNonNull(externalIssueId, "externalIssueId must not be null");
+    log.debug(
+        "Adding comment to GitHub issue. number={} fingerprint={}",
+        externalIssueId,
+        event.fingerprint());
+    return postComment(externalIssueId, formatter.markdownComment(event));
+  }
+
+  /**
+   * Posts a final notice comment on an existing GitHub issue indicating that the configured comment
+   * limit has been reached and Observarium will stop commenting.
+   *
+   * @param externalIssueId the string issue number returned by a previous call to {@link
+   *     #createIssue} or {@link #findDuplicate}
+   * @param commentLimit the configured maximum number of duplicate comments
+   */
+  @Override
+  public PostingResult postCommentLimitNotice(String externalIssueId, int commentLimit) {
+    requireNonNull(externalIssueId, "externalIssueId must not be null");
+    log.debug(
+        "Posting comment-limit notice to GitHub issue. number={} limit={}",
+        externalIssueId,
+        commentLimit);
+    return postComment(externalIssueId, formatter.markdownCommentLimitNotice(commentLimit));
+  }
+
+  /**
+   * Builds and sends a POST request to the GitHub comments endpoint for the given issue, using
+   * {@code commentBody} as the comment text.
+   *
+   * <p>Shared by {@link #commentOnIssue} and {@link #postCommentLimitNotice} to avoid duplication
+   * of the HTTP dispatch and error-handling logic.
+   */
+  private PostingResult postComment(String externalIssueId, String commentBody) {
     String url =
         config.baseUrl()
             + "/repos/"
@@ -195,12 +232,7 @@ public class GitHubPostingService implements PostingService, AutoCloseable {
             + "/comments";
 
     JsonObject requestBody = new JsonObject();
-    requestBody.addProperty("body", formatter.markdownComment(event));
-
-    log.debug(
-        "Adding comment to GitHub issue. number={} fingerprint={}",
-        externalIssueId,
-        event.fingerprint());
+    requestBody.addProperty("body", commentBody);
 
     try {
       HttpRequest request = buildPostRequest(url, gson.toJson(requestBody));
@@ -227,11 +259,7 @@ public class GitHubPostingService implements PostingService, AutoCloseable {
       return PostingResult.success(externalIssueId, commentUrl);
 
     } catch (IOException | InterruptedException e) {
-      log.error(
-          "Failed to comment on GitHub issue. number={} fingerprint={}",
-          externalIssueId,
-          event.fingerprint(),
-          e);
+      log.error("Failed to comment on GitHub issue. number={}", externalIssueId, e);
       if (e instanceof InterruptedException) {
         Thread.currentThread().interrupt();
       }
