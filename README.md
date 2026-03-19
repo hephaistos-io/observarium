@@ -2,6 +2,8 @@
 
 Observarium is an open-source exception tracking library for Java 21 that captures exceptions, deduplicates them by structural fingerprint, scrubs PII from stack traces, and posts issues directly to your issue tracker — no external server, no SaaS subscription, no agents to operate.
 
+[![MvnRepository](https://badges.mvnrepository.com/badge/io.hephaistos/observarium-core/badge.svg?label=MvnRepository)](https://mvnrepository.com/artifact/io.hephaistos/observarium-core)
+
 ## Features
 
 - **Automatic exception capture** — install a global uncaught-exception handler with one call, or capture explicitly via `captureException`
