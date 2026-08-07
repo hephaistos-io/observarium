@@ -25,6 +25,7 @@ import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
+import org.springframework.web.bind.annotation.ControllerAdvice;
 
 /**
  * Spring Boot auto-configuration for the Observarium exception tracking library.
@@ -112,9 +113,18 @@ public class ObservariumAutoConfiguration {
   /**
    * Creates and installs the Observarium handler as the JVM default uncaught exception handler,
    * preserving any existing handler as a delegate.
+   *
+   * <p>Disabled by default ({@code observarium.install-uncaught-handler=false}) because a Boot MVC
+   * application's own threads have their exceptions caught by the servlet container long before
+   * they would reach the JVM default handler — installing it buys little there while mutating
+   * global JVM state. Opt in via {@code observarium.install-uncaught-handler=true} for applications
+   * that spawn their own unmanaged threads. The bean's {@code destroyMethod} restores the previous
+   * default handler on context close, guarded so it only restores if this handler is still the
+   * current default — see {@link ObservariumExceptionHandler#uninstall()}.
    */
-  @Bean
+  @Bean(destroyMethod = "uninstall")
   @ConditionalOnMissingBean
+  @ConditionalOnProperty(name = "observarium.install-uncaught-handler", havingValue = "true")
   public ObservariumExceptionHandler observariumExceptionHandler(Observarium observarium) {
     Thread.UncaughtExceptionHandler existing = Thread.getDefaultUncaughtExceptionHandler();
     var handler = new ObservariumExceptionHandler(observarium, existing);
@@ -124,11 +134,19 @@ public class ObservariumAutoConfiguration {
 
   /**
    * Registers the Spring MVC global exception handler as a bean when DispatcherServlet is on the
-   * classpath.
+   * classpath, unless the application already defines its own {@code @ControllerAdvice} — see
+   * {@link ObservariumGlobalExceptionHandler} for why an application-owned advice always wins over
+   * this one, and why this bean is skipped entirely instead of being registered inert. Explicit
+   * opt-out is available via {@code observarium.mvc.advice-enabled=false} regardless of whether an
+   * application advice is present.
    */
   @Bean
-  @ConditionalOnMissingBean
+  @ConditionalOnMissingBean(annotation = ControllerAdvice.class)
   @ConditionalOnClass(name = "org.springframework.web.servlet.DispatcherServlet")
+  @ConditionalOnProperty(
+      name = "observarium.mvc.advice-enabled",
+      havingValue = "true",
+      matchIfMissing = true)
   public ObservariumGlobalExceptionHandler observariumGlobalExceptionHandler(
       Observarium observarium) {
     return new ObservariumGlobalExceptionHandler(observarium);

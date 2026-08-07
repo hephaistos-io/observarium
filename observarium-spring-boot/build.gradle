@@ -15,3 +15,60 @@ dependencies {
     testImplementation project(':observarium-gitlab')
     testImplementation project(':observarium-email')
 }
+
+// ── Spring Boot 4 cross-build verification (issue #22) ─────────────────────
+//
+// A second test source set, rather than a CI matrix axis over the Boot version, was chosen for
+// this repo:
+//
+//   * CI here already derives its task list dynamically per-module (see .github/workflows/ci.yml)
+//     rather than from a static job matrix, so a matrix axis would mean threading a Boot-version
+//     variable through that module-detection script for a single module — more moving parts than
+//     value gained.
+//   * A source set keeps the Boot 4 dependency resolution entirely inside Gradle, where
+//     `./gradlew check` (and therefore local developer runs, not just CI) exercises it the same
+//     way as every other test task. A matrix axis only runs in CI.
+//   * The two variants need genuinely different dependencies (Boot 3.4.3 vs. the Boot 4 BOM), not
+//     different environments or JDKs — Gradle's own dependency resolution already isolates that
+//     per source set without needing separate OS/JDK matrix legs.
+//
+// The `testBoot4` source set does not extend `testImplementation`/`test`, so it never sees the
+// Boot 3.4.3 versions pinned there; it resolves independently against the Boot 4 BOM, the same way
+// a consumer application upgrading via Spring Boot's own BOM would.
+sourceSets {
+    testBoot4 {
+        java.srcDir 'src/testBoot4/java'
+        resources.srcDir 'src/testBoot4/resources'
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+}
+
+configurations {
+    // Pull in the module's own compile-time API (e.g. `observarium-core` via `api`) without
+    // inheriting the Boot-3.4.3-pinned `testImplementation`/`implementation` test dependencies.
+    testBoot4Implementation.extendsFrom api
+}
+
+dependencies {
+    testBoot4Implementation platform('org.junit:junit-bom:5.11.4')
+    testBoot4Implementation 'org.junit.jupiter:junit-jupiter'
+    testBoot4RuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    testBoot4Implementation platform('org.springframework.boot:spring-boot-dependencies:4.0.0')
+    testBoot4Implementation 'org.springframework.boot:spring-boot-starter-test'
+    testBoot4Implementation 'org.springframework.boot:spring-boot-starter-web'
+    testBoot4Implementation 'ch.qos.logback:logback-classic'
+    testBoot4Implementation project(':observarium-github')
+}
+
+tasks.register('testBoot4', Test) {
+    description = 'Runs Spring Boot 4 compatibility smoke tests for observarium-spring-boot.'
+    group = 'verification'
+    testClassesDirs = sourceSets.testBoot4.output.classesDirs
+    classpath = sourceSets.testBoot4.runtimeClasspath
+    useJUnitPlatform()
+    shouldRunAfter test
+}
+
+check.dependsOn testBoot4

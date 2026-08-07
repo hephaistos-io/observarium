@@ -3,6 +3,7 @@ package io.hephaistos.observarium.spring;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.hephaistos.observarium.Observarium;
+import io.hephaistos.observarium.ObservariumListener;
 import io.hephaistos.observarium.fingerprint.ExceptionFingerprinter;
 import io.hephaistos.observarium.handler.ObservariumExceptionHandler;
 import io.hephaistos.observarium.scrub.DataScrubber;
@@ -32,7 +33,9 @@ class ObservariumAutoConfigurationTest {
           assertThat(context).hasSingleBean(ExceptionFingerprinter.class);
           assertThat(context).hasSingleBean(DataScrubber.class);
           assertThat(context).hasSingleBean(TraceContextProvider.class);
-          assertThat(context).hasSingleBean(ObservariumExceptionHandler.class);
+          // observarium.install-uncaught-handler defaults to false (issue #17): a Boot MVC
+          // application's exceptions never reach the JVM default handler, so it is opt-in.
+          assertThat(context).doesNotHaveBean(ObservariumExceptionHandler.class);
         });
   }
 
@@ -87,6 +90,31 @@ class ObservariumAutoConfigurationTest {
               assertThat(properties.getTraceIdMdcKey()).isEqualTo("traceId");
               assertThat(properties.getSpanIdMdcKey()).isEqualTo("spanId");
             });
+  }
+
+  @Test
+  void installUncaughtHandlerAndAdviceEnabledBindFromEnvironment() {
+    runner
+        .withPropertyValues(
+            "observarium.install-uncaught-handler=true", "observarium.mvc.advice-enabled=false")
+        .run(
+            context -> {
+              ObservariumProperties properties = context.getBean(ObservariumProperties.class);
+              assertThat(properties.isInstallUncaughtHandler()).isTrue();
+              assertThat(properties.getMvc().isAdviceEnabled()).isFalse();
+            });
+  }
+
+  @Test
+  void userDefinedObservariumListenerBeanIsWiredIntoObservarium() {
+    // Pre-existing behaviour (unrelated to issues #14/#17/#22): the observarium() bean method
+    // wires an autowired ObservariumListener when one is present, but nothing exercised that
+    // branch in this module. Covered here per the "never ignore issues" project rule.
+    ObservariumListener listener = new ObservariumListener() {};
+
+    runner
+        .withBean(ObservariumListener.class, () -> listener)
+        .run(context -> assertThat(context).hasSingleBean(Observarium.class));
   }
 
   @Test

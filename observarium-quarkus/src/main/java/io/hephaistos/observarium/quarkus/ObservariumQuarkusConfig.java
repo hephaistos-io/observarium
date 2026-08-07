@@ -28,4 +28,13 @@ public interface ObservariumQuarkusConfig {
 
   @WithDefault("5")
   int maxDuplicateComments();
+
+  // -- Appended: install-uncaught-handler -----------------------------------------------------
+  // Defaults to false, mirroring the Spring module: request-handling threads in Quarkus have
+  // their exceptions caught by the framework, so installing the JVM-wide default handler buys
+  // little there while mutating global state. See ObservariumExceptionHandler#install(Observarium)
+  // for the explicit plain-Java opt-in path.
+
+  @WithDefault("false")
+  boolean installUncaughtHandler();
 }

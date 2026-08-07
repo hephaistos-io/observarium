@@ -14,6 +14,25 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
  * <p>Ordered at {@link Ordered#LOWEST_PRECEDENCE} so that application-defined
  * {@code @ExceptionHandler} methods take precedence. Only activated when {@code DispatcherServlet}
  * is on the classpath, i.e. in a Spring MVC application.
+ *
+ * <p><strong>This is a last-resort capture point, not a guaranteed one.</strong> Spring's {@code
+ * ExceptionHandlerExceptionResolver} resolves an exception by walking its advice cache in
+ * declaration order and invoking the first matching handler — it does not chain multiple advices.
+ * If the host application defines its own catch-all advice (a {@code @ExceptionHandler(Exception
+ * .class)} or a {@code ResponseEntityExceptionHandler} subclass), that advice — not this one — is
+ * the one that runs, and the host's own advice is never asked to also report through Observarium.
+ * The auto-configuration therefore only registers this bean when no application-defined
+ * {@code @ControllerAdvice} bean is already present (see {@code ConditionalOnMissingBean(annotation
+ * = ControllerAdvice.class)} on {@code
+ * ObservariumAutoConfiguration#observariumGlobalExceptionHandler}), and can be disabled outright
+ * via {@code observarium.mvc.advice-enabled=false}.
+ *
+ * <p>When this handler does win, it re-throws after capturing, so the request falls through to
+ * Spring Boot's default {@code BasicErrorController} — bypassing whatever custom error rendering
+ * (e.g. an RFC 9457 {@code application/problem+json} contract) the host application would otherwise
+ * have applied. Applications that own their error handling should not rely on this class at all:
+ * call {@link Observarium#captureException(Throwable)} directly from their own
+ * {@code @ControllerAdvice}.
  */
 @ControllerAdvice
 @Order(Ordered.LOWEST_PRECEDENCE)
