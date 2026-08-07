@@ -18,6 +18,22 @@ import org.slf4j.Logger;
  * produces no warning — every application would otherwise see a warning for every posting service
  * it does not use, which is worse than the silence this is meant to fix. The warning fires only
  * when every required key is present and non-blank.
+ *
+ * <p><b>Why a warning and not an implicit default (see #21):</b> the alternative — defaulting
+ * {@code enabled} to {@code true} whenever required keys are present — was deliberately rejected in
+ * favor of this diagnostic:
+ *
+ * <ul>
+ *   <li>{@code enabled} defaulting to {@code false} is a documented {@link PostingServiceFactory}
+ *       SPI contract that third-party factories implement too, not just the four in this repo.
+ *   <li>"Required keys present" isn't uniform — e.g. Email's {@code username}/{@code password} are
+ *       required only when {@code auth} is enabled — so an implicit default would need per-service
+ *       special-casing baked into the contract itself.
+ *   <li>The blast radius is asymmetric: a forgotten flag is a safe no-op today, but activating on
+ *       key-presence would let stray-but-complete config silently start filing real issues or
+ *       sending real email, which is worse than the bug being fixed.
+ *   <li>Explicit over implicit is this project's stated methodology.
+ * </ul>
  */
 public final class PostingServiceDiagnostics {
 

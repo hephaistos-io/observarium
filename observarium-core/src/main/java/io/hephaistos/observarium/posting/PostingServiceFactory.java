@@ -20,6 +20,10 @@ import java.util.Optional;
  *   <li>{@link #create} throws {@link IllegalArgumentException} when enabled but required
  *       configuration is missing.
  * </ul>
+ *
+ * <p>This opt-in default is deliberate, not an oversight (see #21) — see {@link
+ * PostingServiceDiagnostics} for the rationale and the startup diagnostic that covers the
+ * "configured but forgot to enable it" case instead.
  */
 public interface PostingServiceFactory {
 
