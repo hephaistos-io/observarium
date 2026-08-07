@@ -13,6 +13,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -205,12 +206,37 @@ public class ExceptionProcessor {
         .threadName(callerThreadName)
         .traceId(traceId)
         .spanId(spanId)
-        .tags(tags != null ? tags : Map.of())
+        .tags(scrubTagValues(tags))
         .extra(
             Map.of(
                 "java.version", System.getProperty("java.version", "unknown"),
                 "os.name", System.getProperty("os.name", "unknown")))
         .build();
+  }
+
+  /**
+   * Returns a copy of {@code tags} with every value passed through the configured {@link
+   * DataScrubber}, so tag values are redacted on the same terms as the exception message and stack
+   * trace — honouring the active {@link io.hephaistos.observarium.scrub.ScrubLevel}, any patterns
+   * added via {@code addScrubPattern}, and a custom {@link DataScrubber} supplied by the caller.
+   *
+   * <p>Keys are left untouched. Tag keys are effectively an enum chosen by the calling code (e.g.
+   * {@code "user.id"}, {@code "env"}) rather than free-form content, so scrubbing them would risk
+   * mangling the very labels callers rely on to interpret the tags, for negligible privacy benefit.
+   * A caller who needs a dynamic, potentially sensitive key should encode it as a value instead.
+   *
+   * @param tags the caller-supplied tags; may be null, treated as empty
+   * @return a non-null map with the same keys and scrubbed values
+   */
+  private Map<String, String> scrubTagValues(Map<String, String> tags) {
+    if (tags == null || tags.isEmpty()) {
+      return Map.of();
+    }
+    var scrubbed = new LinkedHashMap<String, String>(tags.size());
+    for (var entry : tags.entrySet()) {
+      scrubbed.put(entry.getKey(), scrubber.scrub(entry.getValue()));
+    }
+    return Map.copyOf(scrubbed);
   }
 
   private static String getFullStackTrace(Throwable throwable) {
