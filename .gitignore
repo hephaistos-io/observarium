@@ -41,3 +41,5 @@ bin/
 
 ### Claude Code ###
 .claude/settings.json
+### Claude Code agent worktrees ###
+.claude/worktrees/
