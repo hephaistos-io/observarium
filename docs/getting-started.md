@@ -157,6 +157,7 @@ dependencies {
 observarium:
   scrub-level: STRICT          # NONE | BASIC (default) | STRICT
   github:
+    enabled: true
     owner: owner
     repo: repo
     token: ${GITHUB_TOKEN}     # inject from environment variable
@@ -241,6 +242,7 @@ dependencies {
 
 ```properties
 observarium.scrub-level=STRICT
+observarium.github.enabled=true
 observarium.github.owner=owner
 observarium.github.repo=repo
 observarium.github.token=${GITHUB_TOKEN}
