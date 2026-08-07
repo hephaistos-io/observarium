@@ -2,6 +2,7 @@ package io.hephaistos.observarium.spring;
 
 import io.hephaistos.observarium.Observarium;
 import io.hephaistos.observarium.ObservariumListener;
+import io.hephaistos.observarium.filter.IgnoredExceptionMatcher;
 import io.hephaistos.observarium.fingerprint.DefaultExceptionFingerprinter;
 import io.hephaistos.observarium.fingerprint.ExceptionFingerprinter;
 import io.hephaistos.observarium.handler.ObservariumExceptionHandler;
@@ -25,6 +26,7 @@ import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
+import org.springframework.util.ClassUtils;
 
 /**
  * Spring Boot auto-configuration for the Observarium exception tracking library.
@@ -54,10 +56,20 @@ public class ObservariumAutoConfiguration {
     return new MdcTraceContextProvider(properties.getTraceIdMdcKey(), properties.getSpanIdMdcKey());
   }
 
+  /**
+   * Creates the default scrubber, including any {@code observarium.scrub-patterns} entries.
+   *
+   * <p>The compiled patterns must be supplied here, not via {@code Builder#addScrubPattern} in
+   * {@link #observarium}: the builder only constructs its own {@code DefaultDataScrubber} from
+   * {@code addScrubPattern} calls when no custom {@link DataScrubber} was supplied — and this
+   * auto-configuration always supplies one (so that {@code @ConditionalOnMissingBean} lets
+   * applications override it), which would otherwise make {@code addScrubPattern} silently inert.
+   */
   @Bean
   @ConditionalOnMissingBean
   public DataScrubber dataScrubber(ObservariumProperties properties) {
-    return new DefaultDataScrubber(properties.getScrubLevel());
+    return new DefaultDataScrubber(
+        properties.getScrubLevel(), properties.getCompiledScrubPatterns());
   }
 
   /**
@@ -71,7 +83,11 @@ public class ObservariumAutoConfiguration {
    *       configured from the Spring {@link Environment}.
    * </ol>
    */
-  @Bean(destroyMethod = "shutdown")
+  // destroyMethod = "" suppresses Spring's inferred-destroy-method heuristic, which would
+  // otherwise detect the public no-arg Observarium#shutdown() method by name and invoke it during
+  // destroySingletons() — after every SmartLifecycle bean, including the web server's, has
+  // already stopped. Shutdown is driven exclusively by ObservariumLifecycle below instead.
+  @Bean(destroyMethod = "")
   @ConditionalOnMissingBean
   public Observarium observarium(
       ObservariumProperties properties,
@@ -88,7 +104,23 @@ public class ObservariumAutoConfiguration {
             .fingerprinter(fingerprinter)
             .scrubber(scrubber)
             .traceContextProvider(traceContextProvider)
-            .maxDuplicateComments(properties.getMaxDuplicateComments());
+            .maxDuplicateComments(properties.getMaxDuplicateComments())
+            .queueCapacity(properties.getQueueCapacity())
+            .shutdownTimeout(properties.getShutdownTimeout());
+    // Note: observarium.scrub-patterns is applied via the dataScrubber bean above, not
+    // addScrubPattern here — see that bean method's javadoc for why.
+
+    // Framework-classified client errors (ErrorResponse, @ResponseStatus 4xx,
+    // BindException/MethodArgumentNotValidException) are ignored by default when Spring MVC is on
+    // the classpath — a 4xx is the API working as designed, not a defect worth filing. The
+    // isPresent check keeps this module usable in a non-web Spring Boot application that has not
+    // pulled in spring-web.
+    if (ClassUtils.isPresent(
+        "org.springframework.web.ErrorResponse", getClass().getClassLoader())) {
+      builder.ignoreIf(SpringDefaultIgnoredExceptions.clientErrorPredicate());
+    }
+    builder.ignoreIf(
+        IgnoredExceptionMatcher.byFullyQualifiedNames(properties.getIgnoredExceptions()));
 
     if (listener != null) {
       builder.listener(listener);
@@ -107,6 +139,19 @@ public class ObservariumAutoConfiguration {
     }
 
     return builder.build();
+  }
+
+  /**
+   * Drives {@link Observarium#shutdown()} from a {@link org.springframework.context.SmartLifecycle}
+   * phased alongside {@link
+   * org.springframework.boot.web.context.WebServerGracefulShutdownLifecycle} instead of a bean
+   * {@code destroyMethod}, so the queue drain overlaps the web server's request drain rather than
+   * running after it. See {@link ObservariumLifecycle} for the phase rationale.
+   */
+  @Bean
+  @ConditionalOnMissingBean
+  ObservariumLifecycle observariumLifecycle(Observarium observarium) {
+    return new ObservariumLifecycle(observarium);
   }
 
   /**

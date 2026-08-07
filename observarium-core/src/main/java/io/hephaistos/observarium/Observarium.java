@@ -11,6 +11,7 @@ import io.hephaistos.observarium.scrub.DefaultDataScrubber;
 import io.hephaistos.observarium.scrub.ScrubLevel;
 import io.hephaistos.observarium.trace.MdcTraceContextProvider;
 import io.hephaistos.observarium.trace.TraceContextProvider;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +22,7 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -59,12 +61,17 @@ public final class Observarium {
   private static final Logger log = LoggerFactory.getLogger(Observarium.class);
   private static final int DEFAULT_QUEUE_CAPACITY = 256;
 
+  /** Default drain budget applied by {@link #shutdown()} unless overridden via the builder. */
+  public static final Duration DEFAULT_SHUTDOWN_TIMEOUT = Duration.ofSeconds(10);
+
   private final ExceptionProcessor processor;
   private final TraceContextProvider traceProvider;
   private final ObservariumConfig config;
   private final ExecutorService executor;
   private final List<PostingService> postingServices;
   private final ObservariumListener listener;
+  private final Predicate<Throwable> ignorePredicate;
+  private final Duration shutdownTimeout;
   private final AtomicBoolean servicesClosed = new AtomicBoolean(false);
   private final Thread shutdownHook;
 
@@ -74,13 +81,17 @@ public final class Observarium {
       ObservariumConfig config,
       ExecutorService executor,
       List<PostingService> postingServices,
-      ObservariumListener listener) {
+      ObservariumListener listener,
+      Predicate<Throwable> ignorePredicate,
+      Duration shutdownTimeout) {
     this.processor = processor;
     this.traceProvider = traceProvider;
     this.config = config;
     this.executor = executor;
     this.postingServices = postingServices;
     this.listener = listener;
+    this.ignorePredicate = ignorePredicate;
+    this.shutdownTimeout = shutdownTimeout;
 
     this.shutdownHook =
         new Thread(
@@ -143,6 +154,12 @@ public final class Observarium {
    */
   public CompletableFuture<List<PostingResult>> captureException(
       Throwable throwable, Severity severity, Map<String, String> tags) {
+    if (isIgnored(throwable)) {
+      // Short-circuit before fingerprinting, scrubbing, or touching the queue at all —
+      // an ignored throwable must cost nothing beyond evaluating the predicate.
+      return CompletableFuture.completedFuture(List.of());
+    }
+
     // Eagerly capture thread-local context on the caller's thread before
     // handing off to the async worker where MDC and thread name would differ.
     String callerThreadName = Thread.currentThread().getName();
@@ -172,6 +189,22 @@ public final class Observarium {
   }
 
   /**
+   * Evaluates the configured {@code ignoreIf} predicate against the given throwable.
+   *
+   * <p>A predicate that throws is treated as "not ignored" (fail open) so that a misbehaving filter
+   * never suppresses reporting of an otherwise-reportable exception; the failure is logged at
+   * {@code DEBUG} and never propagates to the caller.
+   */
+  private boolean isIgnored(Throwable throwable) {
+    try {
+      return ignorePredicate.test(throwable);
+    } catch (Exception ex) {
+      log.debug("ignoreIf predicate threw, treating throwable as not ignored", ex);
+      return false;
+    }
+  }
+
+  /**
    * Returns the read-only configuration snapshot this instance was built with.
    *
    * <p>Useful for introspection in health checks, diagnostic endpoints, or integration tests that
@@ -188,8 +221,9 @@ public final class Observarium {
    * Initiates an orderly shutdown of the background processing thread.
    *
    * <p>Already-queued exceptions continue to be processed; new submissions after this call will be
-   * dropped. This method blocks for up to 10 seconds to let in-flight work complete before closing
-   * posting services. If the executor does not terminate in time, a forced shutdown is attempted.
+   * dropped. This method blocks for up to the configured {@link Builder#shutdownTimeout(Duration)}
+   * (10 seconds by default) to let in-flight work complete before closing posting services. If the
+   * executor does not terminate in time, a forced shutdown is attempted.
    *
    * <p>Calling this method is idempotent. A JVM shutdown hook registered at construction time
    * performs the same shutdown automatically on JVM exit, so explicit calls are only needed when
@@ -207,8 +241,9 @@ public final class Observarium {
 
   private void drainAndClose() {
     try {
-      if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
-        log.warn("Observarium executor did not terminate in time, forcing shutdown");
+      if (!executor.awaitTermination(shutdownTimeout.toNanos(), TimeUnit.NANOSECONDS)) {
+        log.warn(
+            "Observarium executor did not terminate within {}, forcing shutdown", shutdownTimeout);
         executor.shutdownNow();
       }
     } catch (InterruptedException exception) {
@@ -270,6 +305,8 @@ public final class Observarium {
     private int queueCapacity = DEFAULT_QUEUE_CAPACITY;
     private int maxDuplicateComments = ObservariumConfig.DEFAULT_MAX_DUPLICATE_COMMENTS;
     private ObservariumListener listener;
+    private final List<Predicate<Throwable>> ignorePredicates = new ArrayList<>();
+    private Duration shutdownTimeout = DEFAULT_SHUTDOWN_TIMEOUT;
 
     /**
      * Sets the built-in scrub level applied to all event fields before reporting.
@@ -441,6 +478,54 @@ public final class Observarium {
     }
 
     /**
+     * Registers a predicate that, when it evaluates to {@code true} for a captured throwable,
+     * suppresses reporting entirely.
+     *
+     * <p>The check runs synchronously on the caller's thread in {@code captureException}, before
+     * fingerprinting, scrubbing, or the exception ever taking a queue slot — an ignored throwable
+     * is as cheap as evaluating the predicate itself.
+     *
+     * <p>Calling this method more than once is additive: a throwable is ignored if
+     * <strong>any</strong> registered predicate matches (the predicates are combined with logical
+     * {@code OR}). This mirrors how the Spring and Quarkus integrations layer a framework-supplied
+     * default predicate (e.g. "ignore client errors") on top of user-supplied {@code
+     * observarium.ignored-exceptions} entries — each reason to ignore is independent, so any one of
+     * them firing is enough.
+     *
+     * <p>A predicate that throws is treated as "not ignored" (fail open) so a misbehaving filter
+     * never accidentally suppresses reporting of a genuine defect; the failure is logged and
+     * swallowed.
+     *
+     * @param predicate the predicate to add; must not be {@code null}
+     * @return this builder
+     */
+    public Builder ignoreIf(Predicate<Throwable> predicate) {
+      this.ignorePredicates.add(predicate);
+      return this;
+    }
+
+    /**
+     * Sets the maximum time {@link #shutdown()} (and the JVM shutdown hook) will block waiting for
+     * in-flight work to drain before forcing a shutdown and closing posting services.
+     *
+     * <p>Defaults to {@link #DEFAULT_SHUTDOWN_TIMEOUT} (10 seconds). In {@code
+     * observarium-spring-boot}, this is the same budget the {@code SmartLifecycle}-driven shutdown
+     * allots to draining the queue, running alongside the web server's own graceful-shutdown
+     * timeout rather than after it — see {@code docs/configuration.md} for how to size both
+     * together.
+     *
+     * @param timeout the maximum drain duration; must not be {@code null} and must be positive
+     * @return this builder
+     */
+    public Builder shutdownTimeout(Duration timeout) {
+      if (timeout == null || timeout.isNegative() || timeout.isZero()) {
+        throw new IllegalArgumentException("shutdownTimeout must be a positive duration");
+      }
+      this.shutdownTimeout = timeout;
+      return this;
+    }
+
+    /**
      * Builds and returns the configured {@link Observarium} instance.
      *
      * <p>Defaults are applied for any unset options: {@link DefaultExceptionFingerprinter} for
@@ -490,8 +575,18 @@ public final class Observarium {
 
       listener.onQueueSizeAvailable(queue::size);
 
+      Predicate<Throwable> combinedIgnorePredicate =
+          ignorePredicates.stream().reduce(Predicate::or).orElse(throwable -> false);
+
       return new Observarium(
-          processor, traceProvider, config, executor, List.copyOf(postingServices), listener);
+          processor,
+          traceProvider,
+          config,
+          executor,
+          List.copyOf(postingServices),
+          listener,
+          combinedIgnorePredicate,
+          shutdownTimeout);
     }
   }
 }

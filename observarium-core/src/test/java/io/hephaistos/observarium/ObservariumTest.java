@@ -519,4 +519,215 @@ class ObservariumTest {
       obs.shutdown();
     }
   }
+
+  // -----------------------------------------------------------------------
+  // ignoreIf builder option
+  // -----------------------------------------------------------------------
+
+  @Test
+  void ignoreIf_matchingThrowable_isNotDelivered() throws Exception {
+    CapturingPostingService svc = new CapturingPostingService();
+    Observarium obs =
+        Observarium.builder()
+            .ignoreIf(t -> t instanceof IllegalStateException)
+            .addPostingService(svc)
+            .build();
+    try {
+      List<PostingResult> results =
+          obs.captureException(new IllegalStateException("ignored")).get();
+      assertTrue(results.isEmpty(), "Ignored throwable must resolve to an empty result list");
+      assertTrue(svc.received.isEmpty(), "Ignored throwable must never reach a posting service");
+    } finally {
+      obs.shutdown();
+    }
+  }
+
+  @Test
+  void ignoreIf_nonMatchingThrowable_isStillDelivered() throws Exception {
+    CapturingPostingService svc = new CapturingPostingService();
+    Observarium obs =
+        Observarium.builder()
+            .ignoreIf(t -> t instanceof IllegalStateException)
+            .addPostingService(svc)
+            .build();
+    try {
+      List<PostingResult> results = obs.captureException(new RuntimeException("reported")).get();
+      assertEquals(1, results.size());
+      assertTrue(results.get(0).success());
+      assertFalse(svc.received.isEmpty());
+    } finally {
+      obs.shutdown();
+    }
+  }
+
+  @Test
+  void ignoreIf_neverCalled_defaultsToIgnoringNothing() throws Exception {
+    CapturingPostingService svc = new CapturingPostingService();
+    Observarium obs = Observarium.builder().addPostingService(svc).build();
+    try {
+      List<PostingResult> results = obs.captureException(new RuntimeException("e")).get();
+      assertEquals(1, results.size());
+      assertFalse(svc.received.isEmpty());
+    } finally {
+      obs.shutdown();
+    }
+  }
+
+  @Test
+  void ignoreIf_multiplePredicates_areCombinedWithOr() throws Exception {
+    // Neither predicate alone matches an ArithmeticException, but each matches a distinct type;
+    // OR semantics mean registering both still lets each independently suppress its own type.
+    CapturingPostingService svc = new CapturingPostingService();
+    Observarium obs =
+        Observarium.builder()
+            .ignoreIf(t -> t instanceof IllegalStateException)
+            .ignoreIf(t -> t instanceof IllegalArgumentException)
+            .addPostingService(svc)
+            .build();
+    try {
+      assertTrue(obs.captureException(new IllegalStateException()).get().isEmpty());
+      assertTrue(obs.captureException(new IllegalArgumentException()).get().isEmpty());
+      List<PostingResult> reported =
+          obs.captureException(new RuntimeException("still reported")).get();
+      assertEquals(1, reported.size());
+      assertTrue(reported.get(0).success());
+    } finally {
+      obs.shutdown();
+    }
+  }
+
+  @Test
+  void ignoreIf_predicateThrows_failsOpenAndStillReports() throws Exception {
+    CapturingPostingService svc = new CapturingPostingService();
+    Observarium obs =
+        Observarium.builder()
+            .ignoreIf(
+                t -> {
+                  throw new RuntimeException("predicate exploded");
+                })
+            .addPostingService(svc)
+            .build();
+    try {
+      List<PostingResult> results = obs.captureException(new RuntimeException("e")).get();
+      assertEquals(
+          1, results.size(), "A throwing predicate must fail open, not suppress reporting");
+      assertTrue(results.get(0).success());
+    } finally {
+      obs.shutdown();
+    }
+  }
+
+  @Test
+  void ignoreIf_shortCircuitsBeforeFingerprintingAndScrubbing() throws Exception {
+    // Fingerprinter and scrubber must never be invoked for an ignored throwable — proves the
+    // short-circuit happens before either pipeline step, not merely before posting.
+    java.util.concurrent.atomic.AtomicBoolean fingerprinterCalled =
+        new java.util.concurrent.atomic.AtomicBoolean(false);
+    java.util.concurrent.atomic.AtomicBoolean scrubberCalled =
+        new java.util.concurrent.atomic.AtomicBoolean(false);
+    Observarium obs =
+        Observarium.builder()
+            .ignoreIf(t -> true)
+            .fingerprinter(
+                t -> {
+                  fingerprinterCalled.set(true);
+                  return "fp";
+                })
+            .scrubber(
+                text -> {
+                  scrubberCalled.set(true);
+                  return text;
+                })
+            .addPostingService(new CapturingPostingService())
+            .build();
+    try {
+      obs.captureException(new RuntimeException("e")).get();
+      assertFalse(fingerprinterCalled.get(), "Fingerprinter must not run for an ignored throwable");
+      assertFalse(scrubberCalled.get(), "Scrubber must not run for an ignored throwable");
+    } finally {
+      obs.shutdown();
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // shutdownTimeout builder option
+  // -----------------------------------------------------------------------
+
+  @Test
+  void builder_shutdownTimeout_rejectsZero() {
+    Observarium.Builder builder = Observarium.builder();
+    assertThrows(
+        IllegalArgumentException.class, () -> builder.shutdownTimeout(java.time.Duration.ZERO));
+  }
+
+  @Test
+  void builder_shutdownTimeout_rejectsNegative() {
+    Observarium.Builder builder = Observarium.builder();
+    assertThrows(
+        IllegalArgumentException.class,
+        () -> builder.shutdownTimeout(java.time.Duration.ofSeconds(-1)));
+  }
+
+  @Test
+  void builder_shutdownTimeout_rejectsNull() {
+    Observarium.Builder builder = Observarium.builder();
+    assertThrows(IllegalArgumentException.class, () -> builder.shutdownTimeout(null));
+  }
+
+  @Test
+  void shutdown_boundsDrainByConfiguredShutdownTimeout_withUnresponsivePostingService()
+      throws Exception {
+    // A posting service whose findDuplicate() blocks far longer than the configured timeout.
+    // shutdown() must return close to the configured budget, not wait for the service.
+    java.util.concurrent.CountDownLatch serviceEntered = new java.util.concurrent.CountDownLatch(1);
+    PostingService unresponsive =
+        new PostingService() {
+          @Override
+          public String name() {
+            return "unresponsive";
+          }
+
+          @Override
+          public DuplicateSearchResult findDuplicate(
+              io.hephaistos.observarium.event.ExceptionEvent event) {
+            serviceEntered.countDown();
+            try {
+              Thread.sleep(60_000);
+            } catch (InterruptedException e) {
+              Thread.currentThread().interrupt();
+            }
+            return DuplicateSearchResult.notFound();
+          }
+
+          @Override
+          public PostingResult createIssue(io.hephaistos.observarium.event.ExceptionEvent event) {
+            return PostingResult.success("X", "https://tracker/X");
+          }
+
+          @Override
+          public PostingResult commentOnIssue(
+              String externalIssueId, io.hephaistos.observarium.event.ExceptionEvent event) {
+            return PostingResult.success(externalIssueId, "https://tracker/" + externalIssueId);
+          }
+        };
+
+    Observarium obs =
+        Observarium.builder()
+            .shutdownTimeout(java.time.Duration.ofMillis(300))
+            .addPostingService(unresponsive)
+            .build();
+
+    obs.captureException(new RuntimeException("stuck"));
+    assertTrue(serviceEntered.await(5, java.util.concurrent.TimeUnit.SECONDS));
+
+    long start = System.nanoTime();
+    obs.shutdown();
+    long elapsedMillis = (System.nanoTime() - start) / 1_000_000;
+
+    assertTrue(
+        elapsedMillis < 5_000,
+        "shutdown() must be bounded by the configured shutdownTimeout, took "
+            + elapsedMillis
+            + "ms");
+  }
 }

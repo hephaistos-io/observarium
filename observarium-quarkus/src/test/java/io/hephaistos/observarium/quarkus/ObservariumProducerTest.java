@@ -13,6 +13,7 @@ import io.hephaistos.observarium.posting.PostingService;
 import io.hephaistos.observarium.scrub.ScrubLevel;
 import jakarta.enterprise.inject.Instance;
 import java.lang.reflect.Field;
+import java.time.Duration;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -59,6 +60,10 @@ class ObservariumProducerTest {
     when(config.traceIdMdcKey()).thenReturn("trace_id");
     when(config.spanIdMdcKey()).thenReturn("span_id");
     when(config.maxDuplicateComments()).thenReturn(5);
+    when(config.queueCapacity()).thenReturn(256);
+    when(config.scrubPatterns()).thenReturn(Optional.empty());
+    when(config.ignoredExceptions()).thenReturn(Optional.empty());
+    when(config.shutdownTimeout()).thenReturn(Duration.ofSeconds(10));
     when(emptyInstance.iterator()).thenReturn(List.<PostingService>of().iterator());
     when(emptyListenerInstance.isResolvable()).thenReturn(false);
 
