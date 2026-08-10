@@ -18,6 +18,8 @@ All configuration for a plain Java setup goes through the fluent builder returne
 | `listener(ObservariumListener)` | `ObservariumListener` | no-op | Registers a lifecycle listener that receives callbacks for exception captures, drops, and posting outcomes. Used by `observarium-micrometer` to bridge events to Micrometer meters. See [ObservariumListener](#observariumlistener). |
 | `queueCapacity(int)` | `int` | `256` | Capacity of the bounded `ArrayBlockingQueue` that backs the single background worker thread. When the queue is full, new events are dropped and a warning is logged. |
 | `maxDuplicateComments(int)` | `int` | `5` | Maximum number of duplicate comments posted on a single existing issue before further recurrences are dropped silently. Use `-1` for unlimited. See [Duplicate Comment Limit](#duplicate-comment-limit). |
+| `ignoreIf(Predicate<Throwable>)` | `java.util.function.Predicate<Throwable>` | never ignores | Suppresses reporting for a throwable the predicate matches. Runs before fingerprinting, scrubbing, and the queue — an ignored throwable costs nothing beyond the predicate check. Can be called multiple times; a throwable is ignored if **any** registered predicate matches (combined with logical `OR`). See [Exception Filtering](#exception-filtering). |
+| `shutdownTimeout(Duration)` | `java.time.Duration` | `10s` | Maximum time `shutdown()` (and the JVM shutdown hook) blocks draining in-flight work before forcing a shutdown and closing posting services. See [Shutdown Budget](#shutdown-budget). |
 
 **Minimum working example:**
 
@@ -64,6 +66,12 @@ All properties are under the `observarium` prefix. Use either `application.yml` 
 | `observarium.install-uncaught-handler` | `boolean` | `false` | Install Observarium as the JVM default uncaught exception handler, delegating to any previously installed handler. The previous handler is restored on context close. |
 | `observarium.mvc.advice-enabled` | `boolean` | `true` | Register the built-in Spring MVC `@ControllerAdvice`. Skipped automatically when the application declares its own `@ControllerAdvice`. |
 | `observarium.max-duplicate-comments` | `int` | `5` | Maximum number of duplicate comments posted on a single existing issue. Use `-1` for unlimited. See [Duplicate Comment Limit](#duplicate-comment-limit). |
+| `observarium.queue-capacity` | `int` | `256` | Capacity of the bounded queue backing the background worker. Bound to `Builder#queueCapacity`. |
+| `observarium.scrub-patterns` | `List<String>` | empty | Additional regex patterns, one per entry, applied by the default scrubber. Each pattern is compiled while binding configuration properties, so an invalid regex fails application startup with the offending pattern named in the error, rather than only surfacing later as a log line on the background worker thread. |
+| `observarium.ignored-exceptions` | `List<String>` | empty | Fully-qualified exception class names to ignore. A captured throwable is ignored when its class, or any superclass or implemented interface, matches one of these names — listing a supertype also suppresses its subclasses. Composed via `Builder#ignoreIf`. See [Exception Filtering](#exception-filtering). |
+| `observarium.shutdown-timeout` | `Duration` | `10s` | Maximum time the shutdown drain may take. Accepts Spring's simple duration syntax (e.g. `30s`, `500ms`) or ISO-8601 (`PT30S`). Bound to `Builder#shutdownTimeout`. See [Shutdown Budget](#shutdown-budget). |
+
+Spring Boot additionally ignores framework-classified client errors **by default**, with no property needed: `ErrorResponse` implementations, any exception annotated `@ResponseStatus` with a `4xx` status, and `BindException` (which covers `MethodArgumentNotValidException`, since it is a subclass). This default predicate is combined with `observarium.ignored-exceptions` via the same `OR` semantics described in [Exception Filtering](#exception-filtering) — either one matching is enough to suppress reporting. It only activates when Spring MVC (`spring-web`) is present on the runtime classpath, so a non-web Spring Boot application that depends on `observarium-spring-boot` without `spring-web` is unaffected.
 
 Posting service `boolean` properties accept only `true` or `false` (case-insensitive); any other value fails startup with an `IllegalArgumentException` rather than being silently interpreted. A posting service whose required keys are all set but whose `enabled` flag is missing logs a startup warning.
 
@@ -91,7 +99,9 @@ observarium:
 
 Identical keys to Spring Boot; use `application.properties` or `application.yaml`.
 
-The Quarkus module uses the same property names as the Spring Boot module, including `observarium.max-duplicate-comments` and `observarium.install-uncaught-handler` (`observarium.mvc.advice-enabled` is Spring MVC only). Refer to the Spring Boot table above for the complete list.
+The Quarkus module uses the same property names as the Spring Boot module, including `observarium.max-duplicate-comments`, `observarium.queue-capacity`, `observarium.scrub-patterns`, `observarium.ignored-exceptions`, `observarium.shutdown-timeout`, and `observarium.install-uncaught-handler` (`observarium.mvc.advice-enabled` is Spring MVC only). Refer to the Spring Boot table above for the complete list. `observarium.shutdown-timeout` accepts either the ISO-8601 duration format (`PT30S`) or the shorthand SmallRye Config also understands (`30s`).
+
+Unlike Spring Boot, the Quarkus module does not ignore any exceptions by default — `observarium.ignored-exceptions` is the only filtering knob, since there is no equivalent framework-classified "client error" concept wired in for Quarkus. An invalid regex in `observarium.scrub-patterns` fails eagerly when the `Observarium` CDI bean is produced, naming the offending pattern, the same as in Spring Boot.
 
 **Example `application.properties`:**
 
@@ -275,6 +285,72 @@ Observarium obs = Observarium.builder()
 
 ---
 
+## Exception Filtering
+
+`ignoreIf` suppresses reporting entirely for a matching throwable — it is the cheapest possible outcome, since it short-circuits `captureException` before fingerprinting, scrubbing, or the exception ever taking a slot on the background queue.
+
+```java
+Observarium obs = Observarium.builder()
+    .ignoreIf(t -> t instanceof java.io.FileNotFoundException)
+    .addPostingService(...)
+    .build();
+```
+
+**Composition:** calling `ignoreIf` more than once is additive. A throwable is ignored if **any** registered predicate matches — the predicates are combined with logical `OR`, not `AND`. Each call registers an independent reason to ignore; the exception is suppressed as soon as one of them fires. This is also how the Spring and Quarkus integrations layer their own defaults on top of user configuration: Spring's built-in "ignore client errors" predicate and the `observarium.ignored-exceptions` list are two separate `ignoreIf` registrations, so either one matching is enough.
+
+**Failure handling:** a predicate that throws is treated as "not ignored" (fail open) — the throwable is still reported, and the predicate's own exception is logged at `DEBUG` and swallowed. This means a bug in a custom filter can never accidentally silence real defects.
+
+### Spring Boot and Quarkus
+
+`observarium.ignored-exceptions` takes a list of fully-qualified class names. A captured throwable is ignored when its class, or any superclass or implemented interface, matches one of the listed names — so listing a shared domain base exception also covers every subclass without enumerating them individually.
+
+```yaml
+observarium:
+  ignored-exceptions:
+    - com.acme.orders.OrderNotFoundException
+    - com.acme.auth.AccessDeniedException
+```
+
+In Spring Boot specifically, this list is combined (via the same `OR` semantics) with a built-in default that ignores whatever Spring MVC already classifies as a client error: `ErrorResponse` implementations, any exception annotated `@ResponseStatus` with a `4xx` status, and `BindException` (which covers `MethodArgumentNotValidException`). A `4xx` is the API contract working as intended, not a defect — without this default, every new adopter's first experience with the auto-configured MVC advice is a tracker full of validation errors. This default only activates when `spring-web` is present on the runtime classpath.
+
+---
+
+## Shutdown Budget
+
+`shutdownTimeout` bounds how long `shutdown()` — and the JVM shutdown hook that runs it automatically at exit — will wait for in-flight work to drain before forcing a shutdown and closing posting services. It defaults to 10 seconds, matching the library's historical (previously hardcoded) behavior.
+
+```java
+Observarium obs = Observarium.builder()
+    .shutdownTimeout(Duration.ofSeconds(20))
+    .addPostingService(...)
+    .build();
+```
+
+### Spring Boot: overlapping with the web server's graceful shutdown
+
+`observarium-spring-boot` drains the queue from a `SmartLifecycle` bean rather than a bean `destroyMethod`. This matters because bean destruction (`destroySingletons()`) always runs *after every* `SmartLifecycle` bean has finished stopping — including Spring Boot's own `WebServerGracefulShutdownLifecycle`, which drains in-flight HTTP requests. A `destroyMethod`-based drain would therefore always run **after** the request drain, adding its own timeout on top rather than overlapping it.
+
+Observarium's `SmartLifecycle` bean shares `WebServerGracefulShutdownLifecycle`'s exact phase. Spring's `DefaultLifecycleProcessor` groups `SmartLifecycle` beans by phase and stops every bean within a phase **concurrently**, each on its own thread, waiting for the whole phase to finish before moving on. Sharing the phase means the two drains run side by side, so the wall-clock cost of shutting down the application is:
+
+```
+max(request drain, observarium drain)
+```
+
+rather than their sum. When sizing a deployment's termination grace period, budget for whichever of `spring.lifecycle.timeout-per-shutdown-phase` (covering the request drain) and `observarium.shutdown-timeout` is larger — not both added together.
+
+```yaml
+observarium:
+  shutdown-timeout: 15s
+
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+```
+
+With the configuration above, closing the application context with in-flight requests and a full Observarium queue completes in at most 20 seconds (the larger of the two), not 35.
+
+---
+
 ## Async Behaviour
 
 `Observarium.captureException()` returns immediately with a `CompletableFuture<List<PostingResult>>`. The actual work (fingerprinting, scrubbing, HTTP calls to the issue tracker) executes on a single daemon background thread backed by an `ArrayBlockingQueue`.
@@ -283,7 +359,7 @@ Key properties:
 
 - **Single worker thread** — events are processed in submission order, no concurrency within Observarium itself.
 - **Bounded queue** — when the queue reaches `queueCapacity` (default 256), new events are dropped silently except for a `WARN` log line: `"Observarium queue full, dropping exception report"`. This protects the application from backpressure caused by a slow issue tracker.
-- **Shutdown** — both the JVM shutdown hook and `obs.shutdown()` wait up to 10 seconds for in-flight work to complete, then force shutdown only if the drain times out, and then close all posting services. `obs.shutdown()` blocks for the duration of this sequence. Call it explicitly when you need to stop processing before JVM exit, for example in a `@PreDestroy` method.
+- **Shutdown** — both the JVM shutdown hook and `obs.shutdown()` wait up to `shutdownTimeout` (default 10 seconds, see [Shutdown Budget](#shutdown-budget)) for in-flight work to complete, then force shutdown only if the drain times out, and then close all posting services. `obs.shutdown()` blocks for the duration of this sequence. Call it explicitly when you need to stop processing before JVM exit, for example in a `@PreDestroy` method.
 - **Failure isolation** — if a posting service throws an unchecked exception, `ExceptionProcessor` catches it, logs it at `ERROR`, and returns a `PostingResult.failure(...)`. The application thread that called `captureException` is never affected.
 
 ```java

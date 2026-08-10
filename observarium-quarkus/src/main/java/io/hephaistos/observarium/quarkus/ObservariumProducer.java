@@ -2,6 +2,7 @@ package io.hephaistos.observarium.quarkus;
 
 import io.hephaistos.observarium.Observarium;
 import io.hephaistos.observarium.ObservariumListener;
+import io.hephaistos.observarium.filter.IgnoredExceptionMatcher;
 import io.hephaistos.observarium.fingerprint.DefaultExceptionFingerprinter;
 import io.hephaistos.observarium.handler.ObservariumExceptionHandler;
 import io.hephaistos.observarium.posting.PostingService;
@@ -14,9 +15,13 @@ import jakarta.enterprise.inject.Disposes;
 import jakarta.enterprise.inject.Instance;
 import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Inject;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
+import java.util.regex.Pattern;
+import java.util.regex.PatternSyntaxException;
 import org.eclipse.microprofile.config.Config;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -69,14 +74,31 @@ public class ObservariumProducer {
       maxDuplicateComments = 5;
     }
 
+    int queueCapacity = config.queueCapacity();
+    if (queueCapacity <= 0) {
+      throw new IllegalArgumentException(
+          "observarium.queue-capacity must be greater than zero, got: " + queueCapacity);
+    }
+
+    // Passed into DefaultDataScrubber directly: Builder#addScrubPattern is inert once a custom
+    // scrubber is supplied via Builder#scrubber, which this producer always does.
+    List<Pattern> compiledScrubPatterns =
+        compileScrubPatterns(config.scrubPatterns().orElse(List.of()));
+
     var builder =
         Observarium.builder()
             .scrubLevel(scrubLevel)
             .fingerprinter(new DefaultExceptionFingerprinter())
-            .scrubber(new DefaultDataScrubber(scrubLevel))
+            .scrubber(new DefaultDataScrubber(scrubLevel, compiledScrubPatterns))
             .traceContextProvider(
                 new MdcTraceContextProvider(config.traceIdMdcKey(), config.spanIdMdcKey()))
-            .maxDuplicateComments(maxDuplicateComments);
+            .maxDuplicateComments(maxDuplicateComments)
+            .queueCapacity(queueCapacity)
+            .shutdownTimeout(config.shutdownTimeout());
+
+    builder.ignoreIf(
+        IgnoredExceptionMatcher.byFullyQualifiedNames(
+            config.ignoredExceptions().orElse(List.of())));
 
     if (listenerInstance.isResolvable()) {
       builder.listener(listenerInstance.get());
@@ -113,6 +135,27 @@ public class ObservariumProducer {
       uncaughtHandler = null;
     }
     observarium.shutdown();
+  }
+
+  /**
+   * Compiles each configured regex eagerly, so an invalid entry in {@code
+   * observarium.scrub-patterns} fails at startup with the offending pattern named.
+   */
+  private static List<Pattern> compileScrubPatterns(List<String> patterns) {
+    List<Pattern> compiled = new ArrayList<>(patterns.size());
+    for (String pattern : patterns) {
+      try {
+        compiled.add(Pattern.compile(pattern));
+      } catch (PatternSyntaxException e) {
+        throw new IllegalArgumentException(
+            "observarium.scrub-patterns contains an invalid regex '"
+                + pattern
+                + "': "
+                + e.getMessage(),
+            e);
+      }
+    }
+    return compiled;
   }
 
   /**
