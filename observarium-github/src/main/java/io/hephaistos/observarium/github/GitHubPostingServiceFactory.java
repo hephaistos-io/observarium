@@ -1,5 +1,6 @@
 package io.hephaistos.observarium.github;
 
+import io.hephaistos.observarium.posting.PostingConfig;
 import io.hephaistos.observarium.posting.PostingService;
 import io.hephaistos.observarium.posting.PostingServiceDiagnostics;
 import io.hephaistos.observarium.posting.PostingServiceFactory;
@@ -26,8 +27,7 @@ public class GitHubPostingServiceFactory implements PostingServiceFactory {
 
   @Override
   public Optional<PostingService> create(Map<String, String> config) {
-    String enabled = config.getOrDefault("enabled", "false");
-    if (!"true".equalsIgnoreCase(enabled)) {
+    if (!PostingConfig.booleanValue(config, "enabled", false)) {
       PostingServiceDiagnostics.warnIfConfiguredButNotEnabled(log, id(), config, REQUIRED_KEYS);
       return Optional.empty();
     }

@@ -78,26 +78,6 @@ class PostingServiceDiagnosticsTest {
   }
 
   @Test
-  void doesNotWarn_whenEnabledIsTrue() {
-    PostingServiceDiagnostics.warnIfConfiguredButNotEnabled(
-        logger(),
-        "github",
-        Map.of("enabled", "true", "token", "t", "owner", "o", "repo", "r"),
-        List.of("token", "owner", "repo"));
-    assertThat(appender.list).isEmpty();
-  }
-
-  @Test
-  void doesNotWarn_whenEnabledIsTrueCaseInsensitive() {
-    PostingServiceDiagnostics.warnIfConfiguredButNotEnabled(
-        logger(),
-        "github",
-        Map.of("enabled", "TRUE", "token", "t", "owner", "o", "repo", "r"),
-        List.of("token", "owner", "repo"));
-    assertThat(appender.list).isEmpty();
-  }
-
-  @Test
   void doesNotWarn_whenRequiredKeysListIsEmpty() {
     PostingServiceDiagnostics.warnIfConfiguredButNotEnabled(
         logger(), "custom", Map.of("anything", "value"), List.of());

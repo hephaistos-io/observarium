@@ -263,6 +263,42 @@ class EmailPostingServiceFactoryTest {
   }
 
   @Test
+  void create_throwsIllegalArgument_whenAuthIsNotABoolean() {
+    Map<String, String> config =
+        Map.of(
+            "enabled", "true",
+            "auth", "a",
+            "smtp-host", "smtp.example.com",
+            "from", "alerts@example.com",
+            "to", "team@example.com");
+    assertThatThrownBy(() -> factory.create(config))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("auth");
+  }
+
+  @Test
+  void create_throwsIllegalArgument_whenStartTlsIsNotABoolean() {
+    Map<String, String> config =
+        Map.of(
+            "enabled", "true",
+            "auth", "false",
+            "start-tls", "maybe",
+            "smtp-host", "smtp.example.com",
+            "from", "alerts@example.com",
+            "to", "team@example.com");
+    assertThatThrownBy(() -> factory.create(config))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("start-tls");
+  }
+
+  @Test
+  void create_throwsIllegalArgument_whenEnabledIsNotABoolean() {
+    assertThatThrownBy(() -> factory.create(Map.of("enabled", "yes")))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("enabled");
+  }
+
+  @Test
   void factory_isDiscoverableViaServiceLoader() {
     ServiceLoader<PostingServiceFactory> loader = ServiceLoader.load(PostingServiceFactory.class);
     Optional<PostingServiceFactory> found =

@@ -1,5 +1,6 @@
 package io.hephaistos.observarium.email;
 
+import io.hephaistos.observarium.posting.PostingConfig;
 import io.hephaistos.observarium.posting.PostingService;
 import io.hephaistos.observarium.posting.PostingServiceDiagnostics;
 import io.hephaistos.observarium.posting.PostingServiceFactory;
@@ -28,9 +29,8 @@ public class EmailPostingServiceFactory implements PostingServiceFactory {
 
   @Override
   public Optional<PostingService> create(Map<String, String> config) {
-    String enabled = config.getOrDefault("enabled", "false");
-    boolean auth = !"false".equalsIgnoreCase(config.get("auth"));
-    if (!"true".equalsIgnoreCase(enabled)) {
+    boolean auth = PostingConfig.booleanValue(config, "auth", true);
+    if (!PostingConfig.booleanValue(config, "enabled", false)) {
       List<String> requiredKeys = new ArrayList<>(ALWAYS_REQUIRED_KEYS);
       if (auth) {
         requiredKeys.addAll(AUTH_REQUIRED_KEYS);
@@ -48,7 +48,7 @@ public class EmailPostingServiceFactory implements PostingServiceFactory {
             "EmailConfig.smtpPort must be a valid integer, got: " + portStr, e);
       }
     }
-    boolean startTls = !"false".equalsIgnoreCase(config.get("start-tls"));
+    boolean startTls = PostingConfig.booleanValue(config, "start-tls", true);
     EmailConfig emailConfig =
         new EmailConfig(
             config.get("smtp-host"),
