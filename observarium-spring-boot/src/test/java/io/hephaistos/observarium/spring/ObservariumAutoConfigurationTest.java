@@ -107,9 +107,6 @@ class ObservariumAutoConfigurationTest {
 
   @Test
   void userDefinedObservariumListenerBeanIsWiredIntoObservarium() {
-    // Pre-existing behaviour (unrelated to issues #14/#17/#22): the observarium() bean method
-    // wires an autowired ObservariumListener when one is present, but nothing exercised that
-    // branch in this module. Covered here per the "never ignore issues" project rule.
     ObservariumListener listener = new ObservariumListener() {};
 
     runner

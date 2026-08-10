@@ -25,14 +25,6 @@ class ObservariumPropertiesTest {
     assertThat(props.getMvc().isAdviceEnabled()).isTrue();
   }
 
-  // -----------------------------------------------------------------------
-  // setMaxDuplicateComments validation
-  //
-  // Pre-existing behaviour (unrelated to issues #14/#17/#22) that had no direct test in this
-  // module, left the branch coverage below threshold. Covered here per the "never ignore issues,
-  // even if not caused by you" project rule, without touching the production code.
-  // -----------------------------------------------------------------------
-
   @Test
   void maxDuplicateCommentsAcceptsPositiveValue() {
     ObservariumProperties props = new ObservariumProperties();
