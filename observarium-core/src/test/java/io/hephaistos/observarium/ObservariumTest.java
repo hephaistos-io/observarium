@@ -1,7 +1,11 @@
 package io.hephaistos.observarium;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.hephaistos.observarium.event.ExceptionEvent;
 import io.hephaistos.observarium.event.Severity;
 import io.hephaistos.observarium.posting.DuplicateSearchResult;
@@ -14,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 class ObservariumTest {
 
@@ -517,6 +522,63 @@ class ObservariumTest {
           "captureException future must not throw when the scrubber throws");
     } finally {
       obs.shutdown();
+    }
+  }
+
+  // -----------------------------------------------------------------------
+  // Startup diagnostics
+  // -----------------------------------------------------------------------
+
+  @Test
+  void build_withRegisteredServices_logsTheirNames() {
+    Logger logger = (Logger) LoggerFactory.getLogger(Observarium.class);
+    ListAppender<ILoggingEvent> appender = new ListAppender<>();
+    appender.start();
+    logger.addAppender(appender);
+    try {
+      Observarium obs =
+          Observarium.builder()
+              .addPostingService(new CapturingPostingService())
+              .addPostingService(new ThrowingPostingService())
+              .build();
+      try {
+        assertThat(appender.list)
+            .extracting(ILoggingEvent::getFormattedMessage)
+            .anySatisfy(
+                message -> {
+                  assertThat(message)
+                      .contains("Observarium: registered posting services")
+                      .contains("capturing")
+                      .contains("thrower");
+                });
+      } finally {
+        obs.shutdown();
+      }
+    } finally {
+      logger.detachAppender(appender);
+    }
+  }
+
+  @Test
+  void build_withNoServices_doesNotLogRegisteredServicesMessage() {
+    Logger logger = (Logger) LoggerFactory.getLogger(Observarium.class);
+    ListAppender<ILoggingEvent> appender = new ListAppender<>();
+    appender.start();
+    logger.addAppender(appender);
+    try {
+      Observarium obs = Observarium.builder().build();
+      try {
+        assertThat(appender.list)
+            .extracting(ILoggingEvent::getFormattedMessage)
+            .noneMatch(message -> message.contains("registered posting services"));
+        assertThat(appender.list)
+            .extracting(ILoggingEvent::getFormattedMessage)
+            .anyMatch(message -> message.contains("No PostingService configured"));
+      } finally {
+        obs.shutdown();
+      }
+    } finally {
+      logger.detachAppender(appender);
     }
   }
 }
