@@ -8,12 +8,18 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 
 /**
- * Spring MVC {@link ControllerAdvice} that captures all unhandled exceptions via Observarium and
- * re-throws them so that Spring's normal error handling pipeline continues.
+ * Spring MVC {@link ControllerAdvice} that captures unhandled exceptions via Observarium and
+ * re-throws them so Spring's normal error handling continues. Only active when {@code
+ * DispatcherServlet} is on the classpath.
  *
- * <p>Ordered at {@link Ordered#LOWEST_PRECEDENCE} so that application-defined
- * {@code @ExceptionHandler} methods take precedence. Only activated when {@code DispatcherServlet}
- * is on the classpath, i.e. in a Spring MVC application.
+ * <p>This is a last-resort capture point. Spring resolves an exception with the first matching
+ * advice and does not chain advices, so an application-defined catch-all advice wins over this one
+ * — the auto-configuration therefore skips this bean when the application declares its own
+ * {@code @ControllerAdvice}, and {@code observarium.mvc.advice-enabled=false} disables it outright.
+ * Because it re-throws, the request falls through to Spring Boot's {@code BasicErrorController}
+ * rather than any custom error rendering. Applications that own their error handling should call
+ * {@link Observarium#captureException(Throwable)} from their own advice instead of relying on this
+ * class.
  */
 @ControllerAdvice
 @Order(Ordered.LOWEST_PRECEDENCE)

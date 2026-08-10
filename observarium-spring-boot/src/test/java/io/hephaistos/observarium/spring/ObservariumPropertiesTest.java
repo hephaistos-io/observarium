@@ -1,7 +1,7 @@
 package io.hephaistos.observarium.spring;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 
 import io.hephaistos.observarium.scrub.ScrubLevel;
 import org.junit.jupiter.api.Test;
@@ -22,19 +22,21 @@ class ObservariumPropertiesTest {
     assertThat(props.getTraceIdMdcKey()).isEqualTo("trace_id");
     assertThat(props.getSpanIdMdcKey()).isEqualTo("span_id");
     assertThat(props.getMaxDuplicateComments()).isEqualTo(5);
+    assertThat(props.isInstallUncaughtHandler()).isFalse();
+    assertThat(props.getMvc().isAdviceEnabled()).isTrue();
   }
 
   @Test
-  void maxDuplicateCommentsAcceptsPositiveValues() {
+  void maxDuplicateCommentsAcceptsPositiveValue() {
     ObservariumProperties props = new ObservariumProperties();
 
-    props.setMaxDuplicateComments(12);
+    props.setMaxDuplicateComments(3);
 
-    assertThat(props.getMaxDuplicateComments()).isEqualTo(12);
+    assertThat(props.getMaxDuplicateComments()).isEqualTo(3);
   }
 
   @Test
-  void maxDuplicateCommentsAcceptsMinusOneForUnlimited() {
+  void maxDuplicateCommentsAcceptsUnlimitedSentinel() {
     ObservariumProperties props = new ObservariumProperties();
 
     props.setMaxDuplicateComments(-1);
@@ -46,18 +48,29 @@ class ObservariumPropertiesTest {
   void maxDuplicateCommentsRejectsZero() {
     ObservariumProperties props = new ObservariumProperties();
 
-    assertThatThrownBy(() -> props.setMaxDuplicateComments(0))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("observarium.max-duplicate-comments");
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> props.setMaxDuplicateComments(0))
+        .withMessageContaining("observarium.max-duplicate-comments");
   }
 
   @Test
-  void maxDuplicateCommentsRejectsValuesBelowMinusOne() {
+  void maxDuplicateCommentsRejectsValuesBelowNegativeOne() {
     ObservariumProperties props = new ObservariumProperties();
 
-    assertThatThrownBy(() -> props.setMaxDuplicateComments(-2))
-        .isInstanceOf(IllegalArgumentException.class)
-        .hasMessageContaining("-2");
+    assertThatIllegalArgumentException()
+        .isThrownBy(() -> props.setMaxDuplicateComments(-2))
+        .withMessageContaining("observarium.max-duplicate-comments");
+  }
+
+  @Test
+  void installUncaughtHandlerAndAdviceEnabledRoundTrip() {
+    ObservariumProperties props = new ObservariumProperties();
+
+    props.setInstallUncaughtHandler(true);
+    assertThat(props.isInstallUncaughtHandler()).isTrue();
+
+    props.getMvc().setAdviceEnabled(false);
+    assertThat(props.getMvc().isAdviceEnabled()).isFalse();
   }
 
   @Test

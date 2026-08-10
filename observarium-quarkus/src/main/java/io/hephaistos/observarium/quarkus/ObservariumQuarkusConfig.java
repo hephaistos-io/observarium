@@ -28,4 +28,12 @@ public interface ObservariumQuarkusConfig {
 
   @WithDefault("5")
   int maxDuplicateComments();
+
+  /**
+   * Installs Observarium as the JVM default uncaught exception handler. Off by default: Quarkus
+   * catches exceptions on request-handling threads, so this only matters for applications spawning
+   * their own unmanaged threads.
+   */
+  @WithDefault("false")
+  boolean installUncaughtHandler();
 }

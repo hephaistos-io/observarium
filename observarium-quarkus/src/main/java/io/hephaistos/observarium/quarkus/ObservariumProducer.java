@@ -3,6 +3,7 @@ package io.hephaistos.observarium.quarkus;
 import io.hephaistos.observarium.Observarium;
 import io.hephaistos.observarium.ObservariumListener;
 import io.hephaistos.observarium.fingerprint.DefaultExceptionFingerprinter;
+import io.hephaistos.observarium.handler.ObservariumExceptionHandler;
 import io.hephaistos.observarium.posting.PostingService;
 import io.hephaistos.observarium.posting.PostingServiceFactory;
 import io.hephaistos.observarium.scrub.DefaultDataScrubber;
@@ -39,6 +40,8 @@ public class ObservariumProducer {
   @Inject ObservariumQuarkusConfig config;
 
   @Inject Config mpConfig;
+
+  private ObservariumExceptionHandler uncaughtHandler;
 
   @Produces
   @ApplicationScoped
@@ -90,11 +93,25 @@ public class ObservariumProducer {
       factory.create(props).ifPresent(builder::addPostingService);
     }
 
-    return builder.build();
+    var built = builder.build();
+    if (config.installUncaughtHandler()) {
+      uncaughtHandler =
+          new ObservariumExceptionHandler(built, Thread.getDefaultUncaughtExceptionHandler());
+      Thread.setDefaultUncaughtExceptionHandler(uncaughtHandler);
+      log.info("Observarium installed as the JVM default uncaught exception handler");
+    }
+    return built;
   }
 
-  /** Shuts down the {@link Observarium} instance when the CDI context is destroyed. */
+  /**
+   * Shuts down the {@link Observarium} instance when the CDI context is destroyed, restoring the
+   * previous default uncaught exception handler if this producer installed one.
+   */
   public void dispose(@Disposes Observarium observarium) {
+    if (uncaughtHandler != null) {
+      uncaughtHandler.uninstall();
+      uncaughtHandler = null;
+    }
     observarium.shutdown();
   }
 

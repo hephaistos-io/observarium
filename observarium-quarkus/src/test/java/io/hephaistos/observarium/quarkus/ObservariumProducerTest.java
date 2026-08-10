@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 import io.hephaistos.observarium.Observarium;
 import io.hephaistos.observarium.ObservariumListener;
 import io.hephaistos.observarium.event.ExceptionEvent;
+import io.hephaistos.observarium.handler.ObservariumExceptionHandler;
 import io.hephaistos.observarium.posting.DuplicateSearchResult;
 import io.hephaistos.observarium.posting.PostingResult;
 import io.hephaistos.observarium.posting.PostingService;
@@ -74,6 +75,31 @@ class ObservariumProducerTest {
 
     assertThat(result).isNotNull();
     assertThat(result.config().scrubLevel()).isEqualTo(ScrubLevel.STRICT);
+  }
+
+  @Test
+  void observarium_doesNotInstallUncaughtHandler_byDefault() {
+    Thread.UncaughtExceptionHandler before = Thread.getDefaultUncaughtExceptionHandler();
+
+    Observarium result = producer.observarium(emptyInstance, emptyListenerInstance);
+
+    assertThat(Thread.getDefaultUncaughtExceptionHandler()).isSameAs(before);
+    producer.dispose(result);
+  }
+
+  @Test
+  void observarium_installsAndRestoresUncaughtHandler_whenConfigured() {
+    when(config.installUncaughtHandler()).thenReturn(true);
+    Thread.UncaughtExceptionHandler before = Thread.getDefaultUncaughtExceptionHandler();
+
+    Observarium result = producer.observarium(emptyInstance, emptyListenerInstance);
+
+    assertThat(Thread.getDefaultUncaughtExceptionHandler())
+        .isInstanceOf(ObservariumExceptionHandler.class);
+
+    producer.dispose(result);
+
+    assertThat(Thread.getDefaultUncaughtExceptionHandler()).isSameAs(before);
   }
 
   @Test

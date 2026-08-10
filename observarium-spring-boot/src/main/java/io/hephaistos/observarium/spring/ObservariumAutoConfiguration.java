@@ -25,6 +25,7 @@ import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
+import org.springframework.web.bind.annotation.ControllerAdvice;
 
 /**
  * Spring Boot auto-configuration for the Observarium exception tracking library.
@@ -112,9 +113,15 @@ public class ObservariumAutoConfiguration {
   /**
    * Creates and installs the Observarium handler as the JVM default uncaught exception handler,
    * preserving any existing handler as a delegate.
+   *
+   * <p>Off unless {@code observarium.install-uncaught-handler=true}: the servlet container catches
+   * exceptions on request threads long before the JVM default handler sees them, so this matters
+   * only for applications spawning their own unmanaged threads. On context close the previous
+   * default handler is restored via {@link ObservariumExceptionHandler#uninstall()}.
    */
-  @Bean
+  @Bean(destroyMethod = "uninstall")
   @ConditionalOnMissingBean
+  @ConditionalOnProperty(name = "observarium.install-uncaught-handler", havingValue = "true")
   public ObservariumExceptionHandler observariumExceptionHandler(Observarium observarium) {
     Thread.UncaughtExceptionHandler existing = Thread.getDefaultUncaughtExceptionHandler();
     var handler = new ObservariumExceptionHandler(observarium, existing);
@@ -124,11 +131,17 @@ public class ObservariumAutoConfiguration {
 
   /**
    * Registers the Spring MVC global exception handler as a bean when DispatcherServlet is on the
-   * classpath.
+   * classpath, unless the application defines its own {@code @ControllerAdvice} (which would win
+   * over this one — see {@link ObservariumGlobalExceptionHandler}) or {@code
+   * observarium.mvc.advice-enabled=false}.
    */
   @Bean
-  @ConditionalOnMissingBean
+  @ConditionalOnMissingBean(annotation = ControllerAdvice.class)
   @ConditionalOnClass(name = "org.springframework.web.servlet.DispatcherServlet")
+  @ConditionalOnProperty(
+      name = "observarium.mvc.advice-enabled",
+      havingValue = "true",
+      matchIfMissing = true)
   public ObservariumGlobalExceptionHandler observariumGlobalExceptionHandler(
       Observarium observarium) {
     return new ObservariumGlobalExceptionHandler(observarium);

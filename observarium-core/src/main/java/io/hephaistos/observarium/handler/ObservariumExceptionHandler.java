@@ -82,4 +82,25 @@ public class ObservariumExceptionHandler implements Thread.UncaughtExceptionHand
     Thread.setDefaultUncaughtExceptionHandler(
         new ObservariumExceptionHandler(observarium, existing));
   }
+
+  /**
+   * Restores the handler that was in place before this one was installed, but only if this handler
+   * is still the current JVM default.
+   *
+   * <p>If something else has replaced this handler as the default since installation, that handler
+   * is left in place — restoring the old delegate over it would silently undo the other component's
+   * change. This makes the method safe to call unconditionally from a shutdown or context-close
+   * hook, e.g. as a Spring {@code destroyMethod}.
+   *
+   * @return {@code true} if this handler was the current default and has been replaced by its
+   *     delegate (which may be {@code null}); {@code false} if this handler was no longer the
+   *     default and nothing was changed
+   */
+  public boolean uninstall() {
+    if (Thread.getDefaultUncaughtExceptionHandler() == this) {
+      Thread.setDefaultUncaughtExceptionHandler(delegate);
+      return true;
+    }
+    return false;
+  }
 }
