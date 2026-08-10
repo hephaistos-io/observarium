@@ -14,4 +14,6 @@ dependencies {
     testImplementation project(':observarium-jira')
     testImplementation project(':observarium-gitlab')
     testImplementation project(':observarium-email')
+    testImplementation project(':observarium-micrometer')
+    testImplementation 'io.micrometer:micrometer-core:1.14.5'
 }
