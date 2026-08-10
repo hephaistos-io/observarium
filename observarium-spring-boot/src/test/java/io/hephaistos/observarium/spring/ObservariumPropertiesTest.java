@@ -24,6 +24,7 @@ class ObservariumPropertiesTest {
     assertThat(props.getScrubLevel()).isEqualTo(ScrubLevel.BASIC);
     assertThat(props.getTraceIdMdcKey()).isEqualTo("trace_id");
     assertThat(props.getSpanIdMdcKey()).isEqualTo("span_id");
+    assertThat(props.getMaxDuplicateComments()).isEqualTo(5);
     assertThat(props.getQueueCapacity()).isEqualTo(256);
     assertThat(props.getScrubPatterns()).isEmpty();
     assertThat(props.getCompiledScrubPatterns()).isEmpty();

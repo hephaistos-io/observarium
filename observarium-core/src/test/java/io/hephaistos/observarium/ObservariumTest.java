@@ -1,7 +1,11 @@
 package io.hephaistos.observarium;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import io.hephaistos.observarium.event.ExceptionEvent;
 import io.hephaistos.observarium.event.Severity;
 import io.hephaistos.observarium.posting.DuplicateSearchResult;
@@ -9,11 +13,11 @@ import io.hephaistos.observarium.posting.PostingResult;
 import io.hephaistos.observarium.posting.PostingService;
 import io.hephaistos.observarium.scrub.ScrubLevel;
 import io.hephaistos.observarium.trace.TraceContextProvider;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 class ObservariumTest {
 
@@ -23,7 +27,10 @@ class ObservariumTest {
 
   /** PostingService that always creates a new issue and records what it received. */
   private static class CapturingPostingService implements PostingService {
-    final List<ExceptionEvent> received = new ArrayList<>();
+    // CopyOnWriteArrayList so polling reads from the test thread reliably observe writes made
+    // on the background worker thread (used by the report(...) tests, which have no future to
+    // join on for a happens-before edge).
+    final List<ExceptionEvent> received = new java.util.concurrent.CopyOnWriteArrayList<>();
 
     @Override
     public String name() {
@@ -292,6 +299,79 @@ class ObservariumTest {
   }
 
   // -----------------------------------------------------------------------
+  // report(...) overloads (issue #15) — fire-and-forget, mirrors captureException behaviour
+  // -----------------------------------------------------------------------
+
+  @Test
+  void report_throwableOnly_returnsVoidAndDeliversWithErrorSeverity() throws Exception {
+    CapturingPostingService svc = new CapturingPostingService();
+    Observarium obs = Observarium.builder().addPostingService(svc).build();
+    try {
+      obs.report(new RuntimeException("e"));
+      awaitDelivery(svc);
+      assertEquals(Severity.ERROR, svc.received.get(0).severity());
+    } finally {
+      obs.shutdown();
+    }
+  }
+
+  @Test
+  void report_withSeverity_usesThatSeverity() throws Exception {
+    CapturingPostingService svc = new CapturingPostingService();
+    Observarium obs = Observarium.builder().addPostingService(svc).build();
+    try {
+      obs.report(new RuntimeException("e"), Severity.WARNING);
+      awaitDelivery(svc);
+      assertEquals(Severity.WARNING, svc.received.get(0).severity());
+    } finally {
+      obs.shutdown();
+    }
+  }
+
+  @Test
+  void report_withSeverityAndTags_preservesBoth() throws Exception {
+    CapturingPostingService svc = new CapturingPostingService();
+    Observarium obs = Observarium.builder().addPostingService(svc).build();
+    try {
+      Map<String, String> tags = Map.of("env", "prod");
+      obs.report(new RuntimeException("e"), Severity.FATAL, tags);
+      awaitDelivery(svc);
+      ExceptionEvent event = svc.received.get(0);
+      assertEquals(Severity.FATAL, event.severity());
+      assertEquals("prod", event.tags().get("env"));
+    } finally {
+      obs.shutdown();
+    }
+  }
+
+  @Test
+  void report_queueFull_dropsSilentlyWithoutThrowing() {
+    // Behaviour must match captureException's queue-full drop handling: no exception escapes
+    // the caller even when the background queue is saturated.
+    CapturingPostingService svc = new CapturingPostingService();
+    Observarium obs = Observarium.builder().queueCapacity(1).addPostingService(svc).build();
+    try {
+      assertDoesNotThrow(
+          () -> {
+            for (int i = 0; i < 50; i++) {
+              obs.report(new RuntimeException("flood " + i));
+            }
+          });
+    } finally {
+      obs.shutdown();
+    }
+  }
+
+  /** Polls until the capturing service has received at least one event, or times out. */
+  private static void awaitDelivery(CapturingPostingService svc) throws InterruptedException {
+    long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+    while (svc.received.isEmpty() && System.nanoTime() < deadline) {
+      Thread.sleep(10);
+    }
+    assertFalse(svc.received.isEmpty(), "report(...) must eventually deliver to posting services");
+  }
+
+  // -----------------------------------------------------------------------
   // config() accessor
   // -----------------------------------------------------------------------
 
@@ -542,6 +622,40 @@ class ObservariumTest {
     }
   }
 
+  // ---------------------------------------------------------------------
+  // Startup diagnostics
+  // -----------------------------------------------------------------------
+
+  @Test
+  void build_withRegisteredServices_logsTheirNames() {
+    Logger logger = (Logger) LoggerFactory.getLogger(Observarium.class);
+    ListAppender<ILoggingEvent> appender = new ListAppender<>();
+    appender.start();
+    logger.addAppender(appender);
+    try {
+      Observarium obs =
+          Observarium.builder()
+              .addPostingService(new CapturingPostingService())
+              .addPostingService(new ThrowingPostingService())
+              .build();
+      try {
+        assertThat(appender.list)
+            .extracting(ILoggingEvent::getFormattedMessage)
+            .anySatisfy(
+                message -> {
+                  assertThat(message)
+                      .contains("Observarium: registered posting services")
+                      .contains("capturing")
+                      .contains("thrower");
+                });
+      } finally {
+        obs.shutdown();
+      }
+    } finally {
+      logger.detachAppender(appender);
+    }
+  }
+
   @Test
   void ignoreIf_nonMatchingThrowable_isStillDelivered() throws Exception {
     CapturingPostingService svc = new CapturingPostingService();
@@ -729,5 +843,28 @@ class ObservariumTest {
         "shutdown() must be bounded by the configured shutdownTimeout, took "
             + elapsedMillis
             + "ms");
+  }
+
+  @Test
+  void build_withNoServices_doesNotLogRegisteredServicesMessage() {
+    Logger logger = (Logger) LoggerFactory.getLogger(Observarium.class);
+    ListAppender<ILoggingEvent> appender = new ListAppender<>();
+    appender.start();
+    logger.addAppender(appender);
+    try {
+      Observarium obs = Observarium.builder().build();
+      try {
+        assertThat(appender.list)
+            .extracting(ILoggingEvent::getFormattedMessage)
+            .noneMatch(message -> message.contains("registered posting services"));
+        assertThat(appender.list)
+            .extracting(ILoggingEvent::getFormattedMessage)
+            .anyMatch(message -> message.contains("No PostingService configured"));
+      } finally {
+        obs.shutdown();
+      }
+    } finally {
+      logger.detachAppender(appender);
+    }
   }
 }

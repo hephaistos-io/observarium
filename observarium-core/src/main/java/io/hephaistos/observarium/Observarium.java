@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -46,10 +47,10 @@ import org.slf4j.LoggerFactory;
  *     .build();
  *
  * // Capture an exception with default ERROR severity
- * observarium.captureException(ex);
+ * observarium.report(ex);
  *
  * // Capture with explicit severity and custom tags
- * observarium.captureException(ex, Severity.WARNING, Map.of("env", "staging"));
+ * observarium.report(ex, Severity.WARNING, Map.of("env", "staging"));
  * }</pre>
  *
  * <p>A JVM shutdown hook is registered automatically at construction time to drain the queue
@@ -104,10 +105,51 @@ public final class Observarium {
   }
 
   /**
-   * Captures the given exception with {@link Severity#ERROR} severity and no additional tags.
+   * Fire-and-forget capture with {@link Severity#ERROR} severity and no additional tags.
    *
-   * <p>This is a convenience overload for the common case. See {@link #captureException(Throwable,
-   * Severity, Map)} for full semantics.
+   * <p>Default entry point for reporting an exception. Discards the result, so callers gain no
+   * compiled-in reference to {@link CompletableFuture}. Use {@link #captureException(Throwable)}
+   * when delivery must be awaited.
+   *
+   * @param throwable the exception to report; must not be {@code null}
+   */
+  public void report(Throwable throwable) {
+    captureException(throwable);
+  }
+
+  /**
+   * Fire-and-forget capture with the specified severity and no additional tags.
+   *
+   * <p>Discards the result; see {@link #report(Throwable)}.
+   *
+   * @param throwable the exception to report; must not be {@code null}
+   * @param severity the severity to attach to the event; must not be {@code null}
+   */
+  public void report(Throwable throwable, Severity severity) {
+    captureException(throwable, severity);
+  }
+
+  /**
+   * Fire-and-forget capture with the specified severity and tags.
+   *
+   * <p>Discards the result; see {@link #report(Throwable)}.
+   *
+   * @param throwable the exception to report; must not be {@code null}
+   * @param severity the severity to attach to the event; must not be {@code null}
+   * @param tags arbitrary key/value metadata to include in the event; must not be {@code null}, use
+   *     an empty map if there are no tags. Values are scrubbed; keys are not.
+   */
+  public void report(Throwable throwable, Severity severity, Map<String, String> tags) {
+    captureException(throwable, severity, tags);
+  }
+
+  /**
+   * Captures the given exception with {@link Severity#ERROR} severity and no additional tags,
+   * returning a future that resolves once delivery to every configured {@link PostingService}
+   * completes.
+   *
+   * <p>Await-delivery variant; prefer {@link #report(Throwable)} unless the outcome is needed. See
+   * {@link #captureException(Throwable, Severity, Map)} for full semantics.
    *
    * @param throwable the exception to report; must not be {@code null}
    * @return a {@link CompletableFuture} that resolves to the list of results from each configured
@@ -119,9 +161,11 @@ public final class Observarium {
   }
 
   /**
-   * Captures the given exception with the specified severity and no additional tags.
+   * Captures the given exception with the specified severity and no additional tags, returning a
+   * future that resolves once delivery to every configured {@link PostingService} completes.
    *
-   * <p>See {@link #captureException(Throwable, Severity, Map)} for full semantics.
+   * <p>Await-delivery variant; prefer {@link #report(Throwable, Severity)} unless the outcome is
+   * needed. See {@link #captureException(Throwable, Severity, Map)} for full semantics.
    *
    * @param throwable the exception to report; must not be {@code null}
    * @param severity the severity to attach to the event; must not be {@code null}
@@ -136,6 +180,10 @@ public final class Observarium {
   /**
    * Captures the given exception asynchronously and routes it through the full reporting pipeline.
    *
+   * <p>Await-delivery variant; prefer {@link #report(Throwable, Severity, Map)} unless the outcome
+   * is needed — the returned {@link CompletableFuture} lands in the caller's constant pool even
+   * when the value is discarded.
+   *
    * <p>The caller's trace context (trace ID, span ID) and thread name are captured synchronously on
    * the calling thread before the work is handed off, so the reported event reflects the
    * originating request context rather than the background worker's context.
@@ -148,7 +196,9 @@ public final class Observarium {
    * @param throwable the exception to report; must not be {@code null}
    * @param severity the severity to attach to the event; must not be {@code null}
    * @param tags arbitrary key/value metadata to include in the event; must not be {@code null}, use
-   *     an empty map if there are no tags
+   *     an empty map if there are no tags. Values are scrubbed by the configured {@link
+   *     io.hephaistos.observarium.scrub.DataScrubber}; keys are posted verbatim, so sensitive data
+   *     belongs in a value.
    * @return a {@link CompletableFuture} that resolves to the list of {@link PostingResult} values
    *     from each configured {@link PostingService}; never {@code null}
    */
@@ -552,6 +602,10 @@ public final class Observarium {
 
       if (postingServices.isEmpty()) {
         log.warn("No PostingService configured — captured exceptions will be silently ignored");
+      } else {
+        var registeredNames =
+            postingServices.stream().map(PostingService::name).collect(Collectors.joining(", "));
+        log.info("Observarium: registered posting services [{}]", registeredNames);
       }
 
       var config = new ObservariumConfig(scrubLevel, postingServices.size(), maxDuplicateComments);

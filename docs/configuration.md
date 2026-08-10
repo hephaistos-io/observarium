@@ -71,16 +71,20 @@ All properties are under the `observarium` prefix. Use either `application.yml` 
 
 Spring Boot additionally ignores framework-classified client errors **by default**, with no property needed: `ErrorResponse` implementations, any exception annotated `@ResponseStatus` with a `4xx` status, and `BindException` (which covers `MethodArgumentNotValidException`, since it is a subclass). This default predicate is combined with `observarium.ignored-exceptions` via the same `OR` semantics described in [Exception Filtering](#exception-filtering) — either one matching is enough to suppress reporting. It only activates when Spring MVC (`spring-web`) is present on the runtime classpath, so a non-web Spring Boot application that depends on `observarium-spring-boot` without `spring-web` is unaffected.
 
+Posting service `boolean` properties accept only `true` or `false` (case-insensitive); any other value fails startup with an `IllegalArgumentException` rather than being silently interpreted. A posting service whose required keys are all set but whose `enabled` flag is missing logs a startup warning.
+
 **Example `application.yml`:**
 
 ```yaml
 observarium:
   scrub-level: STRICT
   github:
+    enabled: true
     owner: acme
     repo: backend
     token: ${GITHUB_TOKEN}
   jira:
+    enabled: true
     base-url: https://acme.atlassian.net
     username: ${JIRA_USERNAME}
     api-token: ${JIRA_TOKEN}
@@ -101,6 +105,7 @@ Unlike Spring Boot, the Quarkus module does not ignore any exceptions by default
 
 ```properties
 observarium.scrub-level=STRICT
+observarium.github.enabled=true
 observarium.github.owner=acme
 observarium.github.repo=backend
 observarium.github.token=${GITHUB_TOKEN}

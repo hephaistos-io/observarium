@@ -1,9 +1,15 @@
 package io.hephaistos.observarium.email;
 
+import io.hephaistos.observarium.posting.PostingConfig;
 import io.hephaistos.observarium.posting.PostingService;
+import io.hephaistos.observarium.posting.PostingServiceDiagnostics;
 import io.hephaistos.observarium.posting.PostingServiceFactory;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * {@link PostingServiceFactory} implementation for the email posting service.
@@ -12,6 +18,10 @@ import java.util.Optional;
  */
 public class EmailPostingServiceFactory implements PostingServiceFactory {
 
+  private static final Logger log = LoggerFactory.getLogger(EmailPostingServiceFactory.class);
+  private static final List<String> ALWAYS_REQUIRED_KEYS = List.of("smtp-host", "from", "to");
+  private static final List<String> AUTH_REQUIRED_KEYS = List.of("username", "password");
+
   @Override
   public String id() {
     return "email";
@@ -19,8 +29,13 @@ public class EmailPostingServiceFactory implements PostingServiceFactory {
 
   @Override
   public Optional<PostingService> create(Map<String, String> config) {
-    String enabled = config.getOrDefault("enabled", "false");
-    if (!"true".equalsIgnoreCase(enabled)) {
+    boolean auth = PostingConfig.booleanValue(config, "auth", true);
+    if (!PostingConfig.booleanValue(config, "enabled", false)) {
+      List<String> requiredKeys = new ArrayList<>(ALWAYS_REQUIRED_KEYS);
+      if (auth) {
+        requiredKeys.addAll(AUTH_REQUIRED_KEYS);
+      }
+      PostingServiceDiagnostics.warnIfConfiguredButNotEnabled(log, id(), config, requiredKeys);
       return Optional.empty();
     }
     int smtpPort = 587;
@@ -33,8 +48,7 @@ public class EmailPostingServiceFactory implements PostingServiceFactory {
             "EmailConfig.smtpPort must be a valid integer, got: " + portStr, e);
       }
     }
-    boolean auth = !"false".equalsIgnoreCase(config.get("auth"));
-    boolean startTls = !"false".equalsIgnoreCase(config.get("start-tls"));
+    boolean startTls = PostingConfig.booleanValue(config, "start-tls", true);
     EmailConfig emailConfig =
         new EmailConfig(
             config.get("smtp-host"),
