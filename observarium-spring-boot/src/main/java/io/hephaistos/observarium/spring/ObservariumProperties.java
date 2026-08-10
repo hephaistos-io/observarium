@@ -18,6 +18,8 @@ public class ObservariumProperties {
   private String traceIdMdcKey = "trace_id";
   private String spanIdMdcKey = "span_id";
   private int maxDuplicateComments = 5;
+  private boolean installUncaughtHandler = false;
+  private final Mvc mvc = new Mvc();
 
   public boolean isEnabled() {
     return enabled;
@@ -63,13 +65,6 @@ public class ObservariumProperties {
     }
     this.maxDuplicateComments = maxDuplicateComments;
   }
-
-  // -- Appended: install-uncaught-handler / mvc.advice-enabled -------------------------------
-  // See ObservariumAutoConfiguration#observariumExceptionHandler and
-  // #observariumGlobalExceptionHandler for how these are consumed.
-
-  private boolean installUncaughtHandler = false;
-  private final Mvc mvc = new Mvc();
 
   public boolean isInstallUncaughtHandler() {
     return installUncaughtHandler;

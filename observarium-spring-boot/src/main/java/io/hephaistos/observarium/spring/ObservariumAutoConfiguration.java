@@ -114,13 +114,10 @@ public class ObservariumAutoConfiguration {
    * Creates and installs the Observarium handler as the JVM default uncaught exception handler,
    * preserving any existing handler as a delegate.
    *
-   * <p>Disabled by default ({@code observarium.install-uncaught-handler=false}) because a Boot MVC
-   * application's own threads have their exceptions caught by the servlet container long before
-   * they would reach the JVM default handler — installing it buys little there while mutating
-   * global JVM state. Opt in via {@code observarium.install-uncaught-handler=true} for applications
-   * that spawn their own unmanaged threads. The bean's {@code destroyMethod} restores the previous
-   * default handler on context close, guarded so it only restores if this handler is still the
-   * current default — see {@link ObservariumExceptionHandler#uninstall()}.
+   * <p>Off unless {@code observarium.install-uncaught-handler=true}: the servlet container catches
+   * exceptions on request threads long before the JVM default handler sees them, so this matters
+   * only for applications spawning their own unmanaged threads. On context close the previous
+   * default handler is restored via {@link ObservariumExceptionHandler#uninstall()}.
    */
   @Bean(destroyMethod = "uninstall")
   @ConditionalOnMissingBean
@@ -134,11 +131,9 @@ public class ObservariumAutoConfiguration {
 
   /**
    * Registers the Spring MVC global exception handler as a bean when DispatcherServlet is on the
-   * classpath, unless the application already defines its own {@code @ControllerAdvice} — see
-   * {@link ObservariumGlobalExceptionHandler} for why an application-owned advice always wins over
-   * this one, and why this bean is skipped entirely instead of being registered inert. Explicit
-   * opt-out is available via {@code observarium.mvc.advice-enabled=false} regardless of whether an
-   * application advice is present.
+   * classpath, unless the application defines its own {@code @ControllerAdvice} (which would win
+   * over this one — see {@link ObservariumGlobalExceptionHandler}) or {@code
+   * observarium.mvc.advice-enabled=false}.
    */
   @Bean
   @ConditionalOnMissingBean(annotation = ControllerAdvice.class)

@@ -61,6 +61,8 @@ All properties are under the `observarium` prefix. Use either `application.yml` 
 | `observarium.email.password` | `String` | — | SMTP authentication password. |
 | `observarium.email.auth` | `boolean` | `true` | Enable SMTP authentication. |
 | `observarium.email.start-tls` | `boolean` | `true` | Enable STARTTLS. |
+| `observarium.install-uncaught-handler` | `boolean` | `false` | Install Observarium as the JVM default uncaught exception handler, delegating to any previously installed handler. The previous handler is restored on context close. |
+| `observarium.mvc.advice-enabled` | `boolean` | `true` | Register the built-in Spring MVC `@ControllerAdvice`. Skipped automatically when the application declares its own `@ControllerAdvice`. |
 | `observarium.max-duplicate-comments` | `int` | `5` | Maximum number of duplicate comments posted on a single existing issue. Use `-1` for unlimited. See [Duplicate Comment Limit](#duplicate-comment-limit). |
 
 **Example `application.yml`:**
@@ -85,7 +87,7 @@ observarium:
 
 Identical keys to Spring Boot; use `application.properties` or `application.yaml`.
 
-The Quarkus module uses the same property names as the Spring Boot module, including `observarium.max-duplicate-comments`. Refer to the Spring Boot table above for the complete list.
+The Quarkus module uses the same property names as the Spring Boot module, including `observarium.max-duplicate-comments` and `observarium.install-uncaught-handler` (`observarium.mvc.advice-enabled` is Spring MVC only). Refer to the Spring Boot table above for the complete list.
 
 **Example `application.properties`:**
 
