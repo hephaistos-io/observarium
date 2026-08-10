@@ -17,3 +17,46 @@ dependencies {
     testImplementation project(':observarium-micrometer')
     testImplementation 'io.micrometer:micrometer-core:1.14.5'
 }
+
+// Spring Boot 4 cross-build verification (issue #22).
+//
+// A separate test source set rather than a CI matrix axis: the two variants differ only in
+// dependency resolution (Boot 3.4.3 vs. the Boot 4 BOM), which Gradle isolates per source set, and
+// this way `./gradlew check` exercises it locally too. `testBoot4` does not extend
+// `testImplementation`, so it never sees the Boot 3.4.3 versions pinned there.
+sourceSets {
+    testBoot4 {
+        java.srcDir 'src/testBoot4/java'
+        resources.srcDir 'src/testBoot4/resources'
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+}
+
+configurations {
+    // The module's own API (e.g. observarium-core) without the Boot-3.4.3-pinned test deps.
+    testBoot4Implementation.extendsFrom api
+}
+
+dependencies {
+    testBoot4Implementation platform('org.junit:junit-bom:5.11.4')
+    testBoot4Implementation 'org.junit.jupiter:junit-jupiter'
+    testBoot4RuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    testBoot4Implementation platform('org.springframework.boot:spring-boot-dependencies:4.0.0')
+    testBoot4Implementation 'org.springframework.boot:spring-boot-starter-test'
+    testBoot4Implementation 'org.springframework.boot:spring-boot-starter-web'
+    testBoot4Implementation 'ch.qos.logback:logback-classic'
+    testBoot4Implementation project(':observarium-github')
+}
+
+tasks.register('testBoot4', Test) {
+    description = 'Runs Spring Boot 4 compatibility smoke tests for observarium-spring-boot.'
+    group = 'verification'
+    testClassesDirs = sourceSets.testBoot4.output.classesDirs
+    classpath = sourceSets.testBoot4.runtimeClasspath
+    useJUnitPlatform()
+    shouldRunAfter test
+}
+
+check.dependsOn testBoot4

@@ -30,6 +30,8 @@ class ObservariumPropertiesTest {
     assertThat(props.getCompiledScrubPatterns()).isEmpty();
     assertThat(props.getIgnoredExceptions()).isEmpty();
     assertThat(props.getShutdownTimeout()).isEqualTo(Observarium.DEFAULT_SHUTDOWN_TIMEOUT);
+    assertThat(props.isInstallUncaughtHandler()).isFalse();
+    assertThat(props.getMvc().isAdviceEnabled()).isTrue();
   }
 
   @Test
@@ -127,6 +129,17 @@ class ObservariumPropertiesTest {
         .isInstanceOf(IllegalArgumentException.class);
     assertThatThrownBy(() -> props.setShutdownTimeout(null))
         .isInstanceOf(IllegalArgumentException.class);
+  }
+
+  @Test
+  void installUncaughtHandlerAndAdviceEnabledRoundTrip() {
+    ObservariumProperties props = new ObservariumProperties();
+
+    props.setInstallUncaughtHandler(true);
+    assertThat(props.isInstallUncaughtHandler()).isTrue();
+
+    props.getMvc().setAdviceEnabled(false);
+    assertThat(props.getMvc().isAdviceEnabled()).isFalse();
   }
 
   @Test

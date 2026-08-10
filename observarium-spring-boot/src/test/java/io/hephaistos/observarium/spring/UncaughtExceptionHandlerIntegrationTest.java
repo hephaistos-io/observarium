@@ -10,6 +10,7 @@ import io.hephaistos.observarium.posting.PostingResult;
 import io.hephaistos.observarium.posting.PostingService;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -18,6 +19,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.core.env.MapPropertySource;
 
 /**
  * Integration tests verifying that {@link ObservariumAutoConfiguration} installs {@link
@@ -46,9 +49,23 @@ class UncaughtExceptionHandlerIntegrationTest {
   // -----------------------------------------------------------------------
 
   @Test
-  void autoConfigurationInstallsObservariumExceptionHandlerAsJvmDefault() {
+  void byDefault_handlerBeanIsNotCreatedAndJvmDefaultIsUnchanged() {
+    Thread.UncaughtExceptionHandler before = Thread.getDefaultUncaughtExceptionHandler();
+
     new ApplicationContextRunner()
         .withConfiguration(AutoConfigurations.of(ObservariumAutoConfiguration.class))
+        .run(
+            context -> {
+              assertThat(context).doesNotHaveBean(ObservariumExceptionHandler.class);
+              assertThat(Thread.getDefaultUncaughtExceptionHandler()).isSameAs(before);
+            });
+  }
+
+  @Test
+  void whenInstallUncaughtHandlerEnabled_autoConfigurationInstallsHandlerAsJvmDefault() {
+    new ApplicationContextRunner()
+        .withConfiguration(AutoConfigurations.of(ObservariumAutoConfiguration.class))
+        .withPropertyValues("observarium.install-uncaught-handler=true")
         .run(
             context -> {
               assertThat(context).hasSingleBean(ObservariumExceptionHandler.class);
@@ -67,12 +84,96 @@ class UncaughtExceptionHandlerIntegrationTest {
 
     new ApplicationContextRunner()
         .withConfiguration(AutoConfigurations.of(ObservariumAutoConfiguration.class))
-        .withPropertyValues("observarium.enabled=false")
+        .withPropertyValues(
+            "observarium.enabled=false", "observarium.install-uncaught-handler=true")
         .run(
             context -> {
               assertThat(context).doesNotHaveBean(ObservariumExceptionHandler.class);
               assertThat(Thread.getDefaultUncaughtExceptionHandler()).isSameAs(before);
             });
+  }
+
+  @Test
+  void whenInstallUncaughtHandlerExplicitlyFalse_handlerIsNotInstalled() {
+    Thread.UncaughtExceptionHandler before = Thread.getDefaultUncaughtExceptionHandler();
+
+    new ApplicationContextRunner()
+        .withConfiguration(AutoConfigurations.of(ObservariumAutoConfiguration.class))
+        .withPropertyValues("observarium.install-uncaught-handler=false")
+        .run(
+            context -> {
+              assertThat(context).doesNotHaveBean(ObservariumExceptionHandler.class);
+              assertThat(Thread.getDefaultUncaughtExceptionHandler()).isSameAs(before);
+            });
+  }
+
+  // -----------------------------------------------------------------------
+  // Restoration on context close
+  // -----------------------------------------------------------------------
+
+  /**
+   * Builds and refreshes an {@link AnnotationConfigApplicationContext} with {@link
+   * ObservariumAutoConfiguration} registered and {@code observarium.install-uncaught-handler}
+   * forced to {@code true}. Using a raw context (rather than {@link ApplicationContextRunner}) lets
+   * the tests below observe the JVM default handler both while the context is open and after it is
+   * closed, which the runner's callback-scoped {@code run()} does not support.
+   */
+  private AnnotationConfigApplicationContext contextWithHandlerInstalled() {
+    var context = new AnnotationConfigApplicationContext();
+    context.register(ObservariumAutoConfiguration.class);
+    context
+        .getEnvironment()
+        .getPropertySources()
+        .addFirst(
+            new MapPropertySource("test", Map.of("observarium.install-uncaught-handler", "true")));
+    context.refresh();
+    return context;
+  }
+
+  @Test
+  void closingContext_restoresThePreviousDefaultHandler() {
+    Thread.UncaughtExceptionHandler before = Thread.getDefaultUncaughtExceptionHandler();
+
+    try (var context = contextWithHandlerInstalled()) {
+      assertThat(Thread.getDefaultUncaughtExceptionHandler())
+          .isSameAs(context.getBean(ObservariumExceptionHandler.class));
+
+      context.close();
+
+      assertThat(Thread.getDefaultUncaughtExceptionHandler()).isSameAs(before);
+    }
+  }
+
+  @Test
+  void buildingAndClosingManyContextsInSequence_leavesNoHandlerChain() {
+    Thread.UncaughtExceptionHandler before = Thread.getDefaultUncaughtExceptionHandler();
+
+    for (int i = 0; i < 5; i++) {
+      try (var context = contextWithHandlerInstalled()) {
+        assertThat(Thread.getDefaultUncaughtExceptionHandler())
+            .isInstanceOf(ObservariumExceptionHandler.class);
+      }
+    }
+
+    // No chain of delegates from closed contexts should remain: the default handler after the
+    // last context closes must be exactly what it was before the very first context started.
+    assertThat(Thread.getDefaultUncaughtExceptionHandler()).isSameAs(before);
+  }
+
+  @Test
+  void whenSomethingElseReplacesTheHandler_contextCloseDoesNotClobberIt() {
+    Thread.UncaughtExceptionHandler before = Thread.getDefaultUncaughtExceptionHandler();
+
+    try (var context = contextWithHandlerInstalled()) {
+      Thread.UncaughtExceptionHandler somethingElse = (thread, ex) -> {};
+      Thread.setDefaultUncaughtExceptionHandler(somethingElse);
+
+      context.close();
+
+      assertThat(Thread.getDefaultUncaughtExceptionHandler()).isSameAs(somethingElse);
+    } finally {
+      Thread.setDefaultUncaughtExceptionHandler(before);
+    }
   }
 
   // -----------------------------------------------------------------------

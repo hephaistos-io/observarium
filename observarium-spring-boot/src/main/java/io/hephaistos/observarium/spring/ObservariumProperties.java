@@ -30,6 +30,8 @@ public class ObservariumProperties {
   private List<Pattern> compiledScrubPatterns = Collections.emptyList();
   private List<String> ignoredExceptions = Collections.emptyList();
   private Duration shutdownTimeout = Observarium.DEFAULT_SHUTDOWN_TIMEOUT;
+  private boolean installUncaughtHandler = false;
+  private final Mvc mvc = new Mvc();
 
   public boolean isEnabled() {
     return enabled;
@@ -155,5 +157,31 @@ public class ObservariumProperties {
           "observarium.shutdown-timeout must be a positive duration, got: " + shutdownTimeout);
     }
     this.shutdownTimeout = shutdownTimeout;
+  }
+
+  public boolean isInstallUncaughtHandler() {
+    return installUncaughtHandler;
+  }
+
+  public void setInstallUncaughtHandler(boolean installUncaughtHandler) {
+    this.installUncaughtHandler = installUncaughtHandler;
+  }
+
+  public Mvc getMvc() {
+    return mvc;
+  }
+
+  /** Nested {@code observarium.mvc.*} properties. */
+  public static class Mvc {
+
+    private boolean adviceEnabled = true;
+
+    public boolean isAdviceEnabled() {
+      return adviceEnabled;
+    }
+
+    public void setAdviceEnabled(boolean adviceEnabled) {
+      this.adviceEnabled = adviceEnabled;
+    }
   }
 }

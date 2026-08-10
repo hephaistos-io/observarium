@@ -63,6 +63,8 @@ All properties are under the `observarium` prefix. Use either `application.yml` 
 | `observarium.email.password` | `String` | — | SMTP authentication password. |
 | `observarium.email.auth` | `boolean` | `true` | Enable SMTP authentication. |
 | `observarium.email.start-tls` | `boolean` | `true` | Enable STARTTLS. |
+| `observarium.install-uncaught-handler` | `boolean` | `false` | Install Observarium as the JVM default uncaught exception handler, delegating to any previously installed handler. The previous handler is restored on context close. |
+| `observarium.mvc.advice-enabled` | `boolean` | `true` | Register the built-in Spring MVC `@ControllerAdvice`. Skipped automatically when the application declares its own `@ControllerAdvice`. |
 | `observarium.max-duplicate-comments` | `int` | `5` | Maximum number of duplicate comments posted on a single existing issue. Use `-1` for unlimited. See [Duplicate Comment Limit](#duplicate-comment-limit). |
 | `observarium.queue-capacity` | `int` | `256` | Capacity of the bounded queue backing the background worker. Bound to `Builder#queueCapacity`. |
 | `observarium.scrub-patterns` | `List<String>` | empty | Additional regex patterns, one per entry, applied by the default scrubber. Each pattern is compiled while binding configuration properties, so an invalid regex fails application startup with the offending pattern named in the error, rather than only surfacing later as a log line on the background worker thread. |
@@ -97,7 +99,7 @@ observarium:
 
 Identical keys to Spring Boot; use `application.properties` or `application.yaml`.
 
-The Quarkus module uses the same property names as the Spring Boot module, including `observarium.max-duplicate-comments`, `observarium.queue-capacity`, `observarium.scrub-patterns`, `observarium.ignored-exceptions`, and `observarium.shutdown-timeout`. Refer to the Spring Boot table above for the complete list. `observarium.shutdown-timeout` accepts either the ISO-8601 duration format (`PT30S`) or the shorthand SmallRye Config also understands (`30s`).
+The Quarkus module uses the same property names as the Spring Boot module, including `observarium.max-duplicate-comments`, `observarium.queue-capacity`, `observarium.scrub-patterns`, `observarium.ignored-exceptions`, `observarium.shutdown-timeout`, and `observarium.install-uncaught-handler` (`observarium.mvc.advice-enabled` is Spring MVC only). Refer to the Spring Boot table above for the complete list. `observarium.shutdown-timeout` accepts either the ISO-8601 duration format (`PT30S`) or the shorthand SmallRye Config also understands (`30s`).
 
 Unlike Spring Boot, the Quarkus module does not ignore any exceptions by default — `observarium.ignored-exceptions` is the only filtering knob, since there is no equivalent framework-classified "client error" concept wired in for Quarkus. An invalid regex in `observarium.scrub-patterns` fails eagerly when the `Observarium` CDI bean is produced, naming the offending pattern, the same as in Spring Boot.
 

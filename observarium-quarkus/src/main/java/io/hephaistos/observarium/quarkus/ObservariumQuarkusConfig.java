@@ -48,4 +48,12 @@ public interface ObservariumQuarkusConfig {
   /** Maximum time the queue drain may take on shutdown. Mirrors {@code Builder#shutdownTimeout}. */
   @WithDefault("PT10S")
   Duration shutdownTimeout();
+
+  /**
+   * Installs Observarium as the JVM default uncaught exception handler. Off by default: Quarkus
+   * catches exceptions on request-handling threads, so this only matters for applications spawning
+   * their own unmanaged threads.
+   */
+  @WithDefault("false")
+  boolean installUncaughtHandler();
 }

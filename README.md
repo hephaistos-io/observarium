@@ -125,6 +125,10 @@ observarium:
     token: ${GITHUB_TOKEN}
 ```
 
+**Supported Spring Boot versions:** `observarium-spring-boot` compiles against Spring Boot 3.4.x
+and is additionally verified in CI against the Spring Boot 4 BOM (Boot 4.0+). Spring Boot 3.4+ and
+4.x are both supported.
+
 See [`demo-spring/`](demo-spring/) for a runnable example with GitHub + GitLab posting services.
 
 ### Quarkus

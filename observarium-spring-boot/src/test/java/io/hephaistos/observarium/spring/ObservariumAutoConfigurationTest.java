@@ -44,7 +44,9 @@ class ObservariumAutoConfigurationTest {
           assertThat(context).hasSingleBean(ExceptionFingerprinter.class);
           assertThat(context).hasSingleBean(DataScrubber.class);
           assertThat(context).hasSingleBean(TraceContextProvider.class);
-          assertThat(context).hasSingleBean(ObservariumExceptionHandler.class);
+          // observarium.install-uncaught-handler defaults to false (issue #17): a Boot MVC
+          // application's exceptions never reach the JVM default handler, so it is opt-in.
+          assertThat(context).doesNotHaveBean(ObservariumExceptionHandler.class);
         });
   }
 
@@ -98,6 +100,19 @@ class ObservariumAutoConfigurationTest {
               ObservariumProperties properties = context.getBean(ObservariumProperties.class);
               assertThat(properties.getTraceIdMdcKey()).isEqualTo("traceId");
               assertThat(properties.getSpanIdMdcKey()).isEqualTo("spanId");
+            });
+  }
+
+  @Test
+  void installUncaughtHandlerAndAdviceEnabledBindFromEnvironment() {
+    runner
+        .withPropertyValues(
+            "observarium.install-uncaught-handler=true", "observarium.mvc.advice-enabled=false")
+        .run(
+            context -> {
+              ObservariumProperties properties = context.getBean(ObservariumProperties.class);
+              assertThat(properties.isInstallUncaughtHandler()).isTrue();
+              assertThat(properties.getMvc().isAdviceEnabled()).isFalse();
             });
   }
 

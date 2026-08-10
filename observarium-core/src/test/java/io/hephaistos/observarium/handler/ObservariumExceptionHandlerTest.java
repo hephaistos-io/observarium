@@ -254,6 +254,59 @@ class ObservariumExceptionHandlerTest {
   }
 
   // -----------------------------------------------------------------------
+  // uninstall()
+  // -----------------------------------------------------------------------
+
+  @Test
+  void uninstall_whenStillTheCurrentDefault_restoresDelegateAndReturnsTrue() {
+    RecordingUncaughtHandler previous = new RecordingUncaughtHandler();
+    Thread.setDefaultUncaughtExceptionHandler(previous);
+
+    Observarium obs = buildObservarium();
+    ObservariumExceptionHandler handler = new ObservariumExceptionHandler(obs, previous);
+    Thread.setDefaultUncaughtExceptionHandler(handler);
+
+    boolean restored = handler.uninstall();
+
+    assertTrue(restored, "uninstall() must report that it restored the previous handler");
+    assertSame(
+        previous,
+        Thread.getDefaultUncaughtExceptionHandler(),
+        "The previous handler must be the JVM default again");
+  }
+
+  @Test
+  void uninstall_withNullDelegate_restoresNullDefaultAndReturnsTrue() {
+    Observarium obs = buildObservarium();
+    ObservariumExceptionHandler handler = new ObservariumExceptionHandler(obs, null);
+    Thread.setDefaultUncaughtExceptionHandler(handler);
+
+    boolean restored = handler.uninstall();
+
+    assertTrue(restored);
+    assertNull(Thread.getDefaultUncaughtExceptionHandler());
+  }
+
+  @Test
+  void uninstall_whenNoLongerTheCurrentDefault_doesNothingAndReturnsFalse() {
+    Observarium obs = buildObservarium();
+    ObservariumExceptionHandler handler = new ObservariumExceptionHandler(obs, null);
+    Thread.setDefaultUncaughtExceptionHandler(handler);
+
+    // Something else replaces the handler after installation.
+    RecordingUncaughtHandler somethingElse = new RecordingUncaughtHandler();
+    Thread.setDefaultUncaughtExceptionHandler(somethingElse);
+
+    boolean restored = handler.uninstall();
+
+    assertFalse(restored, "uninstall() must not report success when it is no longer the default");
+    assertSame(
+        somethingElse,
+        Thread.getDefaultUncaughtExceptionHandler(),
+        "The handler that replaced this one must be left untouched");
+  }
+
+  // -----------------------------------------------------------------------
   // Resilience: delivery failure (Gap 3)
   //
   // The handler calls captureException(...).get(5, SECONDS). If that get()
