@@ -7,18 +7,11 @@ import org.springframework.context.SmartLifecycle;
 /**
  * Drains {@link Observarium} via {@link SmartLifecycle} instead of a bean {@code destroyMethod}.
  *
- * <p>Bean destruction ({@code destroyMethod = "shutdown"}) runs during {@code destroySingletons()},
- * which happens strictly after every {@link SmartLifecycle} bean — including {@link
- * WebServerGracefulShutdownLifecycle} — has already finished stopping. That serializes the two
- * drains: the request drain completes first, then Observarium's drain adds on top of it.
- *
- * <p>This class shares {@link WebServerGracefulShutdownLifecycle#SMART_LIFECYCLE_PHASE} exactly.
- * Spring's {@code DefaultLifecycleProcessor} groups {@code SmartLifecycle} beans by phase and stops
- * every bean within a phase concurrently, each on its own thread, waiting for the whole phase
- * before moving to the next one. Sharing the phase means the queue drain and the in-flight request
- * drain run side by side, so the wall-clock cost of shutting down is {@code max(request drain,
- * observarium drain)} rather than their sum — see {@code docs/configuration.md} for how to size the
- * two timeouts together.
+ * <p>Bean destruction runs after every {@link SmartLifecycle} bean has stopped, which would
+ * serialize this drain behind the web server's request drain. Sharing {@link
+ * WebServerGracefulShutdownLifecycle#SMART_LIFECYCLE_PHASE} instead makes the two run concurrently
+ * — Spring stops all beans in a phase in parallel — so shutdown costs {@code max(request drain,
+ * observarium drain)} rather than their sum. See {@code docs/configuration.md} for sizing both.
  */
 class ObservariumLifecycle implements SmartLifecycle {
 

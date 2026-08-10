@@ -59,11 +59,9 @@ public class ObservariumAutoConfiguration {
   /**
    * Creates the default scrubber, including any {@code observarium.scrub-patterns} entries.
    *
-   * <p>The compiled patterns must be supplied here, not via {@code Builder#addScrubPattern} in
-   * {@link #observarium}: the builder only constructs its own {@code DefaultDataScrubber} from
-   * {@code addScrubPattern} calls when no custom {@link DataScrubber} was supplied — and this
-   * auto-configuration always supplies one (so that {@code @ConditionalOnMissingBean} lets
-   * applications override it), which would otherwise make {@code addScrubPattern} silently inert.
+   * <p>Supplied here rather than via {@code Builder#addScrubPattern}, which is inert once a custom
+   * {@link DataScrubber} is set — and this auto-configuration always sets one so applications can
+   * override it.
    */
   @Bean
   @ConditionalOnMissingBean
@@ -83,10 +81,9 @@ public class ObservariumAutoConfiguration {
    *       configured from the Spring {@link Environment}.
    * </ol>
    */
-  // destroyMethod = "" suppresses Spring's inferred-destroy-method heuristic, which would
-  // otherwise detect the public no-arg Observarium#shutdown() method by name and invoke it during
-  // destroySingletons() — after every SmartLifecycle bean, including the web server's, has
-  // already stopped. Shutdown is driven exclusively by ObservariumLifecycle below instead.
+  // destroyMethod = "" disables Spring's inferred-destroy-method heuristic, which would call
+  // shutdown() during destroySingletons() — after every SmartLifecycle bean has stopped. Shutdown
+  // is driven by ObservariumLifecycle instead.
   @Bean(destroyMethod = "")
   @ConditionalOnMissingBean
   public Observarium observarium(
@@ -107,14 +104,8 @@ public class ObservariumAutoConfiguration {
             .maxDuplicateComments(properties.getMaxDuplicateComments())
             .queueCapacity(properties.getQueueCapacity())
             .shutdownTimeout(properties.getShutdownTimeout());
-    // Note: observarium.scrub-patterns is applied via the dataScrubber bean above, not
-    // addScrubPattern here — see that bean method's javadoc for why.
-
-    // Framework-classified client errors (ErrorResponse, @ResponseStatus 4xx,
-    // BindException/MethodArgumentNotValidException) are ignored by default when Spring MVC is on
-    // the classpath — a 4xx is the API working as designed, not a defect worth filing. The
-    // isPresent check keeps this module usable in a non-web Spring Boot application that has not
-    // pulled in spring-web.
+    // Client errors are ignored by default when Spring MVC is present — a 4xx is the API working
+    // as designed. The isPresent guard keeps this module usable without spring-web.
     if (ClassUtils.isPresent(
         "org.springframework.web.ErrorResponse", getClass().getClassLoader())) {
       builder.ignoreIf(SpringDefaultIgnoredExceptions.clientErrorPredicate());
@@ -142,11 +133,9 @@ public class ObservariumAutoConfiguration {
   }
 
   /**
-   * Drives {@link Observarium#shutdown()} from a {@link org.springframework.context.SmartLifecycle}
-   * phased alongside {@link
-   * org.springframework.boot.web.context.WebServerGracefulShutdownLifecycle} instead of a bean
-   * {@code destroyMethod}, so the queue drain overlaps the web server's request drain rather than
-   * running after it. See {@link ObservariumLifecycle} for the phase rationale.
+   * Drives {@link Observarium#shutdown()} from a {@code SmartLifecycle} sharing the web server's
+   * shutdown phase, so the queue drain overlaps the request drain — see {@link
+   * ObservariumLifecycle}.
    */
   @Bean
   @ConditionalOnMissingBean

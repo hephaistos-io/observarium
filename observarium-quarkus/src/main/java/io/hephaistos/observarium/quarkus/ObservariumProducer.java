@@ -77,11 +77,8 @@ public class ObservariumProducer {
           "observarium.queue-capacity must be greater than zero, got: " + queueCapacity);
     }
 
-    // The compiled scrub patterns must be passed directly into DefaultDataScrubber's constructor,
-    // not applied afterwards via Builder#addScrubPattern: the builder only builds its own
-    // DefaultDataScrubber from addScrubPattern calls when no custom DataScrubber was supplied via
-    // #scrubber, and this producer always supplies one — which would otherwise make
-    // addScrubPattern silently inert.
+    // Passed into DefaultDataScrubber directly: Builder#addScrubPattern is inert once a custom
+    // scrubber is supplied via Builder#scrubber, which this producer always does.
     List<Pattern> compiledScrubPatterns =
         compileScrubPatterns(config.scrubPatterns().orElse(List.of()));
 
@@ -124,9 +121,8 @@ public class ObservariumProducer {
   }
 
   /**
-   * Compiles each configured regex immediately, so an invalid entry in {@code
-   * observarium.scrub-patterns} fails eagerly — naming the offending pattern — instead of only
-   * surfacing as a log line the first time an exception is captured on a background thread.
+   * Compiles each configured regex eagerly, so an invalid entry in {@code
+   * observarium.scrub-patterns} fails at startup with the offending pattern named.
    */
   private static List<Pattern> compileScrubPatterns(List<String> patterns) {
     List<Pattern> compiled = new ArrayList<>(patterns.size());

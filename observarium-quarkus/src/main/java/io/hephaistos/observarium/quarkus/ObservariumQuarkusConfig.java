@@ -39,10 +39,7 @@ public interface ObservariumQuarkusConfig {
   @WithDefault("256")
   int queueCapacity();
 
-  /**
-   * Additional regex patterns, one per entry, forwarded to {@code Builder#addScrubPattern}. Empty
-   * when unset.
-   */
+  /** Additional regex patterns applied by the default scrubber. Empty when unset. */
   Optional<List<String>> scrubPatterns();
 
   /** Fully-qualified exception class names to ignore; matches subclasses too. Empty when unset. */
