@@ -6,7 +6,7 @@ Observarium is an open-source exception tracking library for Java 21 that captur
 
 ## Features
 
-- **Automatic exception capture** — install a global uncaught-exception handler with one call, or capture explicitly via `captureException`
+- **Automatic exception capture** — install a global uncaught-exception handler with one call, or capture explicitly via `report`
 - **Deduplication via fingerprinting** — SHA-256 fingerprint over exception type + call stack + cause chain; duplicate occurrences become comments on the existing issue rather than new issues
 - **PII data scrubbing** — three configurable levels strip passwords, tokens, Bearer headers, email addresses, IP addresses, and phone numbers from stack traces and messages before they leave the JVM
 - **OpenTelemetry trace correlation** — reads `trace_id` and `span_id` from SLF4J MDC; zero compile-time coupling to any tracing library
@@ -90,9 +90,9 @@ Observarium obs = Observarium.builder()
 ObservariumExceptionHandler.install(obs);
 
 // Capture explicitly
-obs.captureException(exception);
-obs.captureException(exception, Severity.WARNING);
-obs.captureException(exception, Severity.ERROR, Map.of("user.id", "u-42"));
+obs.report(exception);
+obs.report(exception, Severity.WARNING);
+obs.report(exception, Severity.ERROR, Map.of("user.id", "u-42"));
 ```
 
 ### Spring Boot

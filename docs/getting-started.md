@@ -86,15 +86,15 @@ public class App {
         // still called afterward.
         ObservariumExceptionHandler.install(obs);
 
-        // Explicit capture — returns a CompletableFuture you can ignore or inspect
+        // Explicit capture — fire-and-forget, no CompletableFuture reference
         try {
             riskyOperation();
         } catch (Exception e) {
-            obs.captureException(e);
+            obs.report(e);
             // or with an explicit severity:
-            obs.captureException(e, Severity.WARNING);
+            obs.report(e, Severity.WARNING);
             // or with structured tags that appear in the issue body:
-            obs.captureException(e, Severity.ERROR, Map.of(
+            obs.report(e, Severity.ERROR, Map.of(
                 "user.id", "u-42",
                 "tenant",  "acme"
             ));
@@ -187,7 +187,7 @@ public class OrderService {
         try {
             // ...
         } catch (Exception e) {
-            observarium.captureException(e, Severity.ERROR, Map.of("order.id", orderId));
+            observarium.report(e, Severity.ERROR, Map.of("order.id", orderId));
             throw e;
         }
     }
@@ -266,7 +266,7 @@ public class PaymentService {
         try {
             // ...
         } catch (Exception e) {
-            observarium.captureException(e, Severity.ERROR,
+            observarium.report(e, Severity.ERROR,
                 Map.of("transaction.id", transactionId));
             throw e;
         }
