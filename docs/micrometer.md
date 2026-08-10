@@ -30,8 +30,8 @@ Add both `observarium-micrometer` and `micrometer-core` to your dependencies, th
 
 ```groovy
 dependencies {
-    implementation 'io.hephaistos:observarium-core:0.9.1'
-    implementation 'io.hephaistos:observarium-micrometer:0.9.1'
+    implementation 'io.hephaistos:observarium-core:0.10.0'
+    implementation 'io.hephaistos:observarium-micrometer:0.10.0'
     implementation 'io.micrometer:micrometer-core:1.14.5'
     // add a registry backend, e.g.:
     // implementation 'io.micrometer:micrometer-registry-prometheus:1.14.5'
@@ -44,12 +44,12 @@ dependencies {
 <dependency>
   <groupId>io.hephaistos</groupId>
   <artifactId>observarium-core</artifactId>
-  <version>0.9.1</version>
+  <version>0.10.0</version>
 </dependency>
 <dependency>
   <groupId>io.hephaistos</groupId>
   <artifactId>observarium-micrometer</artifactId>
-  <version>0.9.1</version>
+  <version>0.10.0</version>
 </dependency>
 <dependency>
   <groupId>io.micrometer</groupId>
@@ -96,12 +96,12 @@ Add `observarium-spring-boot`, `observarium-micrometer`, and `micrometer-core` t
 
 ```groovy
 dependencies {
-    implementation 'io.hephaistos:observarium-spring-boot:0.9.1'
-    implementation 'io.hephaistos:observarium-micrometer:0.9.1'
+    implementation 'io.hephaistos:observarium-spring-boot:0.10.0'
+    implementation 'io.hephaistos:observarium-micrometer:0.10.0'
     // micrometer-core is pulled in transitively by spring-boot-starter-actuator
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
     // pick one or more posting service backends
-    implementation 'io.hephaistos:observarium-github:0.9.1'
+    implementation 'io.hephaistos:observarium-github:0.10.0'
 }
 ```
 
@@ -111,12 +111,12 @@ dependencies {
 <dependency>
   <groupId>io.hephaistos</groupId>
   <artifactId>observarium-spring-boot</artifactId>
-  <version>0.9.1</version>
+  <version>0.10.0</version>
 </dependency>
 <dependency>
   <groupId>io.hephaistos</groupId>
   <artifactId>observarium-micrometer</artifactId>
-  <version>0.9.1</version>
+  <version>0.10.0</version>
 </dependency>
 <dependency>
   <groupId>org.springframework.boot</groupId>
@@ -158,11 +158,11 @@ Add `observarium-quarkus`, `observarium-micrometer`, and the Quarkus Micrometer 
 
 ```groovy
 dependencies {
-    implementation 'io.hephaistos:observarium-quarkus:0.9.1'
-    implementation 'io.hephaistos:observarium-micrometer:0.9.1'
+    implementation 'io.hephaistos:observarium-quarkus:0.10.0'
+    implementation 'io.hephaistos:observarium-micrometer:0.10.0'
     implementation 'io.quarkus:quarkus-micrometer'
     // pick one or more posting service backends
-    implementation 'io.hephaistos:observarium-github:0.9.1'
+    implementation 'io.hephaistos:observarium-github:0.10.0'
 }
 ```
 
@@ -172,12 +172,12 @@ dependencies {
 <dependency>
   <groupId>io.hephaistos</groupId>
   <artifactId>observarium-quarkus</artifactId>
-  <version>0.9.1</version>
+  <version>0.10.0</version>
 </dependency>
 <dependency>
   <groupId>io.hephaistos</groupId>
   <artifactId>observarium-micrometer</artifactId>
-  <version>0.9.1</version>
+  <version>0.10.0</version>
 </dependency>
 <dependency>
   <groupId>io.quarkus</groupId>
