@@ -78,6 +78,7 @@ new GitHubPostingService(new GitHubConfig("ghp_yourtoken", "owner", "repo", "my-
 ```yaml
 observarium:
   github:
+    enabled: true
     owner: owner
     repo: repo
     token: ${GITHUB_TOKEN}
@@ -86,6 +87,7 @@ observarium:
 **Quarkus (`application.properties`)**
 
 ```properties
+observarium.github.enabled=true
 observarium.github.owner=owner
 observarium.github.repo=repo
 observarium.github.token=${GITHUB_TOKEN}
@@ -152,6 +154,7 @@ new JiraPostingService(new JiraConfig(
 ```yaml
 observarium:
   jira:
+    enabled: true
     base-url: https://myorg.atlassian.net
     username: ${JIRA_USERNAME}
     api-token: ${JIRA_TOKEN}
@@ -161,6 +164,7 @@ observarium:
 **Quarkus (`application.properties`)**
 
 ```properties
+observarium.jira.enabled=true
 observarium.jira.base-url=https://myorg.atlassian.net
 observarium.jira.username=${JIRA_USERNAME}
 observarium.jira.api-token=${JIRA_TOKEN}
@@ -226,6 +230,7 @@ Observarium obs = Observarium.builder()
 ```yaml
 observarium:
   gitlab:
+    enabled: true
     base-url: https://gitlab.com
     private-token: ${GITLAB_TOKEN}
     project-id: "12345678"
@@ -234,6 +239,7 @@ observarium:
 **Quarkus (`application.properties`)**
 
 ```properties
+observarium.gitlab.enabled=true
 observarium.gitlab.base-url=https://gitlab.com
 observarium.gitlab.private-token=${GITLAB_TOKEN}
 observarium.gitlab.project-id=12345678
@@ -295,6 +301,7 @@ new EmailPostingService(new EmailConfig(
 ```yaml
 observarium:
   email:
+    enabled: true
     smtp-host: smtp.example.com
     smtp-port: 587
     username: ${SMTP_USERNAME}
@@ -306,6 +313,7 @@ observarium:
 **Quarkus (`application.properties`)**
 
 ```properties
+observarium.email.enabled=true
 observarium.email.smtp-host=smtp.example.com
 observarium.email.smtp-port=587
 observarium.email.username=${SMTP_USERNAME}

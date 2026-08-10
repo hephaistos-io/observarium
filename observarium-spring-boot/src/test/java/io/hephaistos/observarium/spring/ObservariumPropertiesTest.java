@@ -21,6 +21,7 @@ class ObservariumPropertiesTest {
     assertThat(props.getScrubLevel()).isEqualTo(ScrubLevel.BASIC);
     assertThat(props.getTraceIdMdcKey()).isEqualTo("trace_id");
     assertThat(props.getSpanIdMdcKey()).isEqualTo("span_id");
+    assertThat(props.getMaxDuplicateComments()).isEqualTo(5);
     assertThat(props.isInstallUncaughtHandler()).isFalse();
     assertThat(props.getMvc().isAdviceEnabled()).isTrue();
   }

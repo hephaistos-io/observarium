@@ -1,9 +1,14 @@
 package io.hephaistos.observarium.github;
 
+import io.hephaistos.observarium.posting.PostingConfig;
 import io.hephaistos.observarium.posting.PostingService;
+import io.hephaistos.observarium.posting.PostingServiceDiagnostics;
 import io.hephaistos.observarium.posting.PostingServiceFactory;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * {@link PostingServiceFactory} implementation for the GitHub posting service.
@@ -12,6 +17,9 @@ import java.util.Optional;
  */
 public class GitHubPostingServiceFactory implements PostingServiceFactory {
 
+  private static final Logger log = LoggerFactory.getLogger(GitHubPostingServiceFactory.class);
+  private static final List<String> REQUIRED_KEYS = List.of("token", "owner", "repo");
+
   @Override
   public String id() {
     return "github";
@@ -19,8 +27,8 @@ public class GitHubPostingServiceFactory implements PostingServiceFactory {
 
   @Override
   public Optional<PostingService> create(Map<String, String> config) {
-    String enabled = config.getOrDefault("enabled", "false");
-    if (!"true".equalsIgnoreCase(enabled)) {
+    if (!PostingConfig.booleanValue(config, "enabled", false)) {
+      PostingServiceDiagnostics.warnIfConfiguredButNotEnabled(log, id(), config, REQUIRED_KEYS);
       return Optional.empty();
     }
     GitHubConfig ghConfig =

@@ -65,16 +65,20 @@ All properties are under the `observarium` prefix. Use either `application.yml` 
 | `observarium.mvc.advice-enabled` | `boolean` | `true` | Register the built-in Spring MVC `@ControllerAdvice`. Skipped automatically when the application declares its own `@ControllerAdvice`. |
 | `observarium.max-duplicate-comments` | `int` | `5` | Maximum number of duplicate comments posted on a single existing issue. Use `-1` for unlimited. See [Duplicate Comment Limit](#duplicate-comment-limit). |
 
+Posting service `boolean` properties accept only `true` or `false` (case-insensitive); any other value fails startup with an `IllegalArgumentException` rather than being silently interpreted. A posting service whose required keys are all set but whose `enabled` flag is missing logs a startup warning.
+
 **Example `application.yml`:**
 
 ```yaml
 observarium:
   scrub-level: STRICT
   github:
+    enabled: true
     owner: acme
     repo: backend
     token: ${GITHUB_TOKEN}
   jira:
+    enabled: true
     base-url: https://acme.atlassian.net
     username: ${JIRA_USERNAME}
     api-token: ${JIRA_TOKEN}
@@ -93,6 +97,7 @@ The Quarkus module uses the same property names as the Spring Boot module, inclu
 
 ```properties
 observarium.scrub-level=STRICT
+observarium.github.enabled=true
 observarium.github.owner=acme
 observarium.github.repo=backend
 observarium.github.token=${GITHUB_TOKEN}
