@@ -134,8 +134,7 @@ jobs:
             TASKS=""
             for module in $AFFECTED; do
               TASKS="$TASKS :observarium-${module}:jacocoTestCoverageVerification"
-              # observarium-spring-boot carries an extra Spring Boot 4 cross-build smoke test
-              # (issue #22) that jacocoTestCoverageVerification does not depend on.
+              # Boot 4 cross-build smoke test is not reached via jacocoTestCoverageVerification.
               if [ "$module" = "spring-boot" ]; then
                 TASKS="$TASKS :observarium-spring-boot:testBoot4"
               fi

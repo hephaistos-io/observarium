@@ -16,25 +16,12 @@ dependencies {
     testImplementation project(':observarium-email')
 }
 
-// ── Spring Boot 4 cross-build verification (issue #22) ─────────────────────
+// Spring Boot 4 cross-build verification (issue #22).
 //
-// A second test source set, rather than a CI matrix axis over the Boot version, was chosen for
-// this repo:
-//
-//   * CI here already derives its task list dynamically per-module (see .github/workflows/ci.yml)
-//     rather than from a static job matrix, so a matrix axis would mean threading a Boot-version
-//     variable through that module-detection script for a single module — more moving parts than
-//     value gained.
-//   * A source set keeps the Boot 4 dependency resolution entirely inside Gradle, where
-//     `./gradlew check` (and therefore local developer runs, not just CI) exercises it the same
-//     way as every other test task. A matrix axis only runs in CI.
-//   * The two variants need genuinely different dependencies (Boot 3.4.3 vs. the Boot 4 BOM), not
-//     different environments or JDKs — Gradle's own dependency resolution already isolates that
-//     per source set without needing separate OS/JDK matrix legs.
-//
-// The `testBoot4` source set does not extend `testImplementation`/`test`, so it never sees the
-// Boot 3.4.3 versions pinned there; it resolves independently against the Boot 4 BOM, the same way
-// a consumer application upgrading via Spring Boot's own BOM would.
+// A separate test source set rather than a CI matrix axis: the two variants differ only in
+// dependency resolution (Boot 3.4.3 vs. the Boot 4 BOM), which Gradle isolates per source set, and
+// this way `./gradlew check` exercises it locally too. `testBoot4` does not extend
+// `testImplementation`, so it never sees the Boot 3.4.3 versions pinned there.
 sourceSets {
     testBoot4 {
         java.srcDir 'src/testBoot4/java'
@@ -45,8 +32,7 @@ sourceSets {
 }
 
 configurations {
-    // Pull in the module's own compile-time API (e.g. `observarium-core` via `api`) without
-    // inheriting the Boot-3.4.3-pinned `testImplementation`/`implementation` test dependencies.
+    // The module's own API (e.g. observarium-core) without the Boot-3.4.3-pinned test deps.
     testBoot4Implementation.extendsFrom api
 }
 
