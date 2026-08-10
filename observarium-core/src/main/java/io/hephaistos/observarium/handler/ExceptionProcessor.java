@@ -216,14 +216,8 @@ public class ExceptionProcessor {
 
   /**
    * Returns a copy of {@code tags} with every value passed through the configured {@link
-   * DataScrubber}, so tag values are redacted on the same terms as the exception message and stack
-   * trace — honouring the active {@link io.hephaistos.observarium.scrub.ScrubLevel}, any patterns
-   * added via {@code addScrubPattern}, and a custom {@link DataScrubber} supplied by the caller.
-   *
-   * <p>Keys are left untouched. Tag keys are effectively an enum chosen by the calling code (e.g.
-   * {@code "user.id"}, {@code "env"}) rather than free-form content, so scrubbing them would risk
-   * mangling the very labels callers rely on to interpret the tags, for negligible privacy benefit.
-   * A caller who needs a dynamic, potentially sensitive key should encode it as a value instead.
+   * DataScrubber}. Keys are left untouched — they are labels chosen by the calling code, not
+   * free-form content.
    *
    * @param tags the caller-supplied tags; may be null, treated as empty
    * @return a non-null map with the same keys and scrubbed values

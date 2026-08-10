@@ -95,12 +95,9 @@ public final class Observarium {
   /**
    * Fire-and-forget capture with {@link Severity#ERROR} severity and no additional tags.
    *
-   * <p>This is the default entry point for reporting an exception: it discards the result and
-   * carries no return-type reference to {@link CompletableFuture}, so a class calling only {@code
-   * report} methods has no compiled-in dependency on {@code
-   * java.util.concurrent.CompletableFuture}. Delegates to {@link #captureException(Throwable)}. Use
-   * {@link #captureException(Throwable)} instead when the caller needs to await delivery (e.g. to
-   * block before JVM exit).
+   * <p>Default entry point for reporting an exception. Discards the result, so callers gain no
+   * compiled-in reference to {@link CompletableFuture}. Use {@link #captureException(Throwable)}
+   * when delivery must be awaited.
    *
    * @param throwable the exception to report; must not be {@code null}
    */
@@ -111,9 +108,7 @@ public final class Observarium {
   /**
    * Fire-and-forget capture with the specified severity and no additional tags.
    *
-   * <p>Discards the result; see {@link #report(Throwable)} for why this is the recommended default
-   * over {@link #captureException(Throwable, Severity)}. Delegates to {@link
-   * #captureException(Throwable, Severity)}.
+   * <p>Discards the result; see {@link #report(Throwable)}.
    *
    * @param throwable the exception to report; must not be {@code null}
    * @param severity the severity to attach to the event; must not be {@code null}
@@ -125,15 +120,12 @@ public final class Observarium {
   /**
    * Fire-and-forget capture with the specified severity and tags.
    *
-   * <p>Discards the result; see {@link #report(Throwable)} for why this is the recommended default
-   * over {@link #captureException(Throwable, Severity, Map)}. Delegates to {@link
-   * #captureException(Throwable, Severity, Map)}, including its queue-full drop handling.
+   * <p>Discards the result; see {@link #report(Throwable)}.
    *
    * @param throwable the exception to report; must not be {@code null}
    * @param severity the severity to attach to the event; must not be {@code null}
    * @param tags arbitrary key/value metadata to include in the event; must not be {@code null}, use
-   *     an empty map if there are no tags. Values are scrubbed by the configured {@link
-   *     io.hephaistos.observarium.scrub.DataScrubber} before posting; keys are not.
+   *     an empty map if there are no tags. Values are scrubbed; keys are not.
    */
   public void report(Throwable throwable, Severity severity, Map<String, String> tags) {
     captureException(throwable, severity, tags);
@@ -144,9 +136,8 @@ public final class Observarium {
    * returning a future that resolves once delivery to every configured {@link PostingService}
    * completes.
    *
-   * <p>This is the await-delivery variant. Prefer {@link #report(Throwable)} unless you
-   * specifically need to wait for or inspect the outcome — for example, to block before the JVM
-   * exits. See {@link #captureException(Throwable, Severity, Map)} for full semantics.
+   * <p>Await-delivery variant; prefer {@link #report(Throwable)} unless the outcome is needed. See
+   * {@link #captureException(Throwable, Severity, Map)} for full semantics.
    *
    * @param throwable the exception to report; must not be {@code null}
    * @return a {@link CompletableFuture} that resolves to the list of results from each configured
@@ -161,9 +152,8 @@ public final class Observarium {
    * Captures the given exception with the specified severity and no additional tags, returning a
    * future that resolves once delivery to every configured {@link PostingService} completes.
    *
-   * <p>This is the await-delivery variant. Prefer {@link #report(Throwable, Severity)} unless you
-   * specifically need to wait for or inspect the outcome. See {@link #captureException(Throwable,
-   * Severity, Map)} for full semantics.
+   * <p>Await-delivery variant; prefer {@link #report(Throwable, Severity)} unless the outcome is
+   * needed. See {@link #captureException(Throwable, Severity, Map)} for full semantics.
    *
    * @param throwable the exception to report; must not be {@code null}
    * @param severity the severity to attach to the event; must not be {@code null}
@@ -178,11 +168,9 @@ public final class Observarium {
   /**
    * Captures the given exception asynchronously and routes it through the full reporting pipeline.
    *
-   * <p>This is the await-delivery variant, returning a future that resolves once delivery to every
-   * configured {@link PostingService} completes. Prefer {@link #report(Throwable, Severity, Map)}
-   * unless you specifically need to wait for or inspect the outcome — the returned {@link
-   * CompletableFuture} type is compiled into the caller's constant pool whether or not the value is
-   * used, which is unwanted in code bases that restrict concurrency primitives.
+   * <p>Await-delivery variant; prefer {@link #report(Throwable, Severity, Map)} unless the outcome
+   * is needed — the returned {@link CompletableFuture} lands in the caller's constant pool even
+   * when the value is discarded.
    *
    * <p>The caller's trace context (trace ID, span ID) and thread name are captured synchronously on
    * the calling thread before the work is handed off, so the reported event reflects the
@@ -197,10 +185,8 @@ public final class Observarium {
    * @param severity the severity to attach to the event; must not be {@code null}
    * @param tags arbitrary key/value metadata to include in the event; must not be {@code null}, use
    *     an empty map if there are no tags. Values are scrubbed by the configured {@link
-   *     io.hephaistos.observarium.scrub.DataScrubber} before posting, on the same terms as the
-   *     exception message and stack trace. Keys are posted verbatim — they are treated as
-   *     caller-chosen labels (e.g. {@code "user.id"}, {@code "env"}) rather than free-form content,
-   *     so a dynamic or potentially sensitive value should be encoded as a value, not a key.
+   *     io.hephaistos.observarium.scrub.DataScrubber}; keys are posted verbatim, so sensitive data
+   *     belongs in a value.
    * @return a {@link CompletableFuture} that resolves to the list of {@link PostingResult} values
    *     from each configured {@link PostingService}; never {@code null}
    */
