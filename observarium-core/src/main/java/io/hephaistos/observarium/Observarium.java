@@ -22,6 +22,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -516,6 +517,10 @@ public final class Observarium {
 
       if (postingServices.isEmpty()) {
         log.warn("No PostingService configured — captured exceptions will be silently ignored");
+      } else {
+        var registeredNames =
+            postingServices.stream().map(PostingService::name).collect(Collectors.joining(", "));
+        log.info("Observarium: registered posting services [{}]", registeredNames);
       }
 
       var config = new ObservariumConfig(scrubLevel, postingServices.size(), maxDuplicateComments);

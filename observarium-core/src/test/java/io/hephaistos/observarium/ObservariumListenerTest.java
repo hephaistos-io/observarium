@@ -38,7 +38,7 @@ class ObservariumListenerTest {
             .build();
 
     observarium.captureException(new RuntimeException("test"), Severity.WARNING);
-    latch.await(5, TimeUnit.SECONDS);
+    assertThat(latch.await(5, TimeUnit.SECONDS)).as("posting should complete").isTrue();
 
     assertThat(listener.capturedSeverities).containsExactly(Severity.WARNING);
   }
@@ -93,15 +93,25 @@ class ObservariumListenerTest {
   @Test
   void listener_receivesOnPostingCompleted() throws Exception {
     RecordingListener listener = new RecordingListener();
-    var latch = new CountDownLatch(1);
+    var completedLatch = new CountDownLatch(1);
     observarium =
         Observarium.builder()
-            .listener(listener)
-            .addPostingService(latchService("github", latch))
+            .listener(
+                new ObservariumListener() {
+                  @Override
+                  public void onPostingCompleted(
+                      String serviceName, boolean duplicate, boolean success, long durationNanos) {
+                    listener.onPostingCompleted(serviceName, duplicate, success, durationNanos);
+                    completedLatch.countDown();
+                  }
+                })
+            .addPostingService(latchService("github", new CountDownLatch(1)))
             .build();
 
     observarium.captureException(new RuntimeException("test"));
-    latch.await(5, TimeUnit.SECONDS);
+    assertThat(completedLatch.await(5, TimeUnit.SECONDS))
+        .as("onPostingCompleted should be called")
+        .isTrue();
 
     assertThat(listener.postingCompletions).hasSize(1);
     RecordingListener.PostingCompletion completion = listener.postingCompletions.get(0);
@@ -136,7 +146,7 @@ class ObservariumListenerTest {
             .build();
 
     var future = observarium.captureException(new RuntimeException("test"));
-    latch.await(5, TimeUnit.SECONDS);
+    assertThat(latch.await(5, TimeUnit.SECONDS)).as("posting should complete").isTrue();
 
     var results = future.get(5, TimeUnit.SECONDS);
     assertThat(results).hasSize(1);

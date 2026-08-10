@@ -18,8 +18,11 @@ import java.util.Optional;
  *   <li>{@link #create} returns {@link Optional#empty()} when the {@code enabled} key is absent or
  *       {@code "false"}.
  *   <li>{@link #create} throws {@link IllegalArgumentException} when enabled but required
- *       configuration is missing.
+ *       configuration is missing, or when a value is malformed.
  * </ul>
+ *
+ * <p>The opt-in default is deliberate; {@link PostingServiceDiagnostics} warns when a service looks
+ * configured but was left disabled.
  */
 public interface PostingServiceFactory {
 

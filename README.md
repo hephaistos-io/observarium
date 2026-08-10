@@ -119,6 +119,7 @@ obs.report(exception, Severity.ERROR, Map.of("user.id", "u-42"));
 observarium:
   scrub-level: STRICT
   github:
+    enabled: true
     owner: owner
     repo: repo
     token: ${GITHUB_TOKEN}
@@ -148,6 +149,7 @@ See [`demo-spring/`](demo-spring/) for a runnable example with GitHub + GitLab p
 ```properties
 # application.properties
 observarium.scrub-level=STRICT
+observarium.github.enabled=true
 observarium.github.owner=owner
 observarium.github.repo=repo
 observarium.github.token=${GITHUB_TOKEN}
