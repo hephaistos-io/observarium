@@ -13,6 +13,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -205,12 +206,31 @@ public class ExceptionProcessor {
         .threadName(callerThreadName)
         .traceId(traceId)
         .spanId(spanId)
-        .tags(tags != null ? tags : Map.of())
+        .tags(scrubTagValues(tags))
         .extra(
             Map.of(
                 "java.version", System.getProperty("java.version", "unknown"),
                 "os.name", System.getProperty("os.name", "unknown")))
         .build();
+  }
+
+  /**
+   * Returns a copy of {@code tags} with every value passed through the configured {@link
+   * DataScrubber}. Keys are left untouched — they are labels chosen by the calling code, not
+   * free-form content.
+   *
+   * @param tags the caller-supplied tags; may be null, treated as empty
+   * @return a non-null map with the same keys and scrubbed values
+   */
+  private Map<String, String> scrubTagValues(Map<String, String> tags) {
+    if (tags == null || tags.isEmpty()) {
+      return Map.of();
+    }
+    var scrubbed = new LinkedHashMap<String, String>(tags.size());
+    for (var entry : tags.entrySet()) {
+      scrubbed.put(entry.getKey(), scrubber.scrub(entry.getValue()));
+    }
+    return Map.copyOf(scrubbed);
   }
 
   private static String getFullStackTrace(Throwable throwable) {

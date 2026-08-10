@@ -11,9 +11,12 @@ import io.hephaistos.observarium.posting.DuplicateSearchResult;
 import io.hephaistos.observarium.posting.PostingResult;
 import io.hephaistos.observarium.posting.PostingService;
 import io.hephaistos.observarium.scrub.DataScrubber;
+import io.hephaistos.observarium.scrub.DefaultDataScrubber;
+import io.hephaistos.observarium.scrub.ScrubLevel;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
 class ExceptionProcessorTest {
@@ -387,6 +390,116 @@ class ExceptionProcessorTest {
     ExceptionProcessor proc = processor(List.of(service));
 
     process(proc, new RuntimeException("no tags"), Severity.ERROR, null);
+
+    ExceptionEvent event = service.createIssueCalls.get(0);
+    assertNotNull(event.tags());
+    assertTrue(event.tags().isEmpty());
+  }
+
+  // -----------------------------------------------------------------------
+  // Tests: tag scrubbing (issue #20 — tags must be scrubbed like message/stack trace)
+  // -----------------------------------------------------------------------
+
+  @Test
+  void event_tagValuesAreScrubbed() {
+    RecordingPostingService service =
+        new RecordingPostingService("svc", DuplicateSearchResult.notFound());
+    ExceptionProcessor proc =
+        new ExceptionProcessor(
+            FIXED_FINGERPRINTER, MARKING_SCRUBBER, List.of(service), NOOP_LISTENER);
+
+    Map<String, String> tags = Map.of("user.id", "u-42");
+    process(proc, new RuntimeException("tagged"), Severity.ERROR, tags);
+
+    ExceptionEvent event = service.createIssueCalls.get(0);
+    assertEquals(
+        "SCRUBBED:u-42", event.tags().get("user.id"), "Tag values must pass through the scrubber");
+  }
+
+  @Test
+  void event_tagKeysAreNotScrubbed() {
+    // Explicit decision (see ExceptionProcessor#scrubTagValues javadoc): keys are caller-chosen
+    // labels, not free-form content, so only values go through the scrubber.
+    RecordingPostingService service =
+        new RecordingPostingService("svc", DuplicateSearchResult.notFound());
+    ExceptionProcessor proc =
+        new ExceptionProcessor(
+            FIXED_FINGERPRINTER, MARKING_SCRUBBER, List.of(service), NOOP_LISTENER);
+
+    Map<String, String> tags = Map.of("user.id", "u-42");
+    process(proc, new RuntimeException("tagged"), Severity.ERROR, tags);
+
+    ExceptionEvent event = service.createIssueCalls.get(0);
+    assertTrue(event.tags().containsKey("user.id"), "Tag keys must be preserved verbatim");
+  }
+
+  @Test
+  void event_tagValueWithEmail_isRedactedAtStrictLevel() {
+    RecordingPostingService service =
+        new RecordingPostingService("svc", DuplicateSearchResult.notFound());
+    DataScrubber strictScrubber = new DefaultDataScrubber(ScrubLevel.STRICT);
+    ExceptionProcessor proc =
+        new ExceptionProcessor(
+            FIXED_FINGERPRINTER, strictScrubber, List.of(service), NOOP_LISTENER);
+
+    Map<String, String> tags = Map.of("user.email", "alice@example.com");
+    process(proc, new RuntimeException("tagged"), Severity.ERROR, tags);
+
+    ExceptionEvent event = service.createIssueCalls.get(0);
+    assertEquals(
+        "[REDACTED]",
+        event.tags().get("user.email"),
+        "STRICT scrub level must redact an email address found in a tag value");
+  }
+
+  @Test
+  void event_tagValue_honoursCustomScrubPattern() {
+    RecordingPostingService service =
+        new RecordingPostingService("svc", DuplicateSearchResult.notFound());
+    DataScrubber customPatternScrubber =
+        new DefaultDataScrubber(ScrubLevel.BASIC, List.of(Pattern.compile("ACME-\\d+")));
+    ExceptionProcessor proc =
+        new ExceptionProcessor(
+            FIXED_FINGERPRINTER, customPatternScrubber, List.of(service), NOOP_LISTENER);
+
+    Map<String, String> tags = Map.of("order.id", "ACME-12345");
+    process(proc, new RuntimeException("tagged"), Severity.ERROR, tags);
+
+    ExceptionEvent event = service.createIssueCalls.get(0);
+    assertEquals(
+        "[REDACTED]",
+        event.tags().get("order.id"),
+        "Custom scrub patterns added via addScrubPattern must apply to tag values");
+  }
+
+  @Test
+  void event_tagValue_honoursCustomDataScrubber() {
+    RecordingPostingService service =
+        new RecordingPostingService("svc", DuplicateSearchResult.notFound());
+    DataScrubber customScrubber = text -> text == null ? null : text.replace("secret", "***");
+    ExceptionProcessor proc =
+        new ExceptionProcessor(
+            FIXED_FINGERPRINTER, customScrubber, List.of(service), NOOP_LISTENER);
+
+    Map<String, String> tags = Map.of("note", "contains secret value");
+    process(proc, new RuntimeException("tagged"), Severity.ERROR, tags);
+
+    ExceptionEvent event = service.createIssueCalls.get(0);
+    assertEquals(
+        "contains *** value",
+        event.tags().get("note"),
+        "A fully custom DataScrubber implementation must be applied to tag values");
+  }
+
+  @Test
+  void event_emptyTags_remainEmptyAfterScrubbing() {
+    RecordingPostingService service =
+        new RecordingPostingService("svc", DuplicateSearchResult.notFound());
+    ExceptionProcessor proc =
+        new ExceptionProcessor(
+            FIXED_FINGERPRINTER, MARKING_SCRUBBER, List.of(service), NOOP_LISTENER);
+
+    process(proc, new RuntimeException("no tags"), Severity.ERROR, Map.of());
 
     ExceptionEvent event = service.createIssueCalls.get(0);
     assertNotNull(event.tags());
