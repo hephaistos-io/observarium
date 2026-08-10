@@ -3,11 +3,15 @@ package io.hephaistos.observarium.spring;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.hephaistos.observarium.Observarium;
+import io.hephaistos.observarium.ObservariumListener;
+import io.hephaistos.observarium.event.Severity;
 import io.hephaistos.observarium.fingerprint.ExceptionFingerprinter;
 import io.hephaistos.observarium.handler.ObservariumExceptionHandler;
 import io.hephaistos.observarium.scrub.DataScrubber;
 import io.hephaistos.observarium.scrub.ScrubLevel;
 import io.hephaistos.observarium.trace.TraceContextProvider;
+import java.time.Duration;
+import java.util.concurrent.CompletableFuture;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
@@ -87,6 +91,30 @@ class ObservariumAutoConfigurationTest {
               assertThat(properties.getTraceIdMdcKey()).isEqualTo("traceId");
               assertThat(properties.getSpanIdMdcKey()).isEqualTo("spanId");
             });
+  }
+
+  @Test
+  void applicationListenerBeanIsWiredIntoObservarium() {
+    var listener = new RecordingListener();
+    runner
+        .withBean(ObservariumListener.class, () -> listener)
+        .run(
+            context -> {
+              assertThat(context).hasSingleBean(Observarium.class);
+              context.getBean(Observarium.class).captureException(new IllegalStateException("x"));
+              assertThat(listener.captured).succeedsWithin(Duration.ofSeconds(5)).isEqualTo(true);
+            });
+  }
+
+  /** Completes as soon as the auto-configured Observarium reports a capture. */
+  private static final class RecordingListener implements ObservariumListener {
+
+    private final CompletableFuture<Boolean> captured = new CompletableFuture<>();
+
+    @Override
+    public void onExceptionCaptured(Severity severity) {
+      captured.complete(true);
+    }
   }
 
   @Test
